@@ -100,6 +100,9 @@ unzip -l "$ZIP_FILE"
 git config --global user.name "GitHub Actions"
 git config --global user.email "actions@github.com"
 
-# Stage and commit changes
-git add -A
+# Stage and commit changes including extensions
+git add manifest.json
+git add "$HTML_PATH"
+git add "$CHANGELOG_PATH"
+git add -f "$ZIP_FILE"
 git commit -m "Auto-update: Version $NEW_VERSION [skip ci]" || echo "No changes to commit"

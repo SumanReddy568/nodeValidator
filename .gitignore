@@ -27,7 +27,11 @@ debug.log
 # Chrome Extension specific
 *.pem
 *.crx
-*.zip
+
+# Keep extensions directory but ignore specific extension files
+!extensions/
+extensions/*
+!extensions/.gitkeep
 
 # OS generated files
 .DS_Store
