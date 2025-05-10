@@ -75,28 +75,26 @@ if [ -f "$ZIP_FILE" ]; then
   rm -f "$ZIP_FILE"
 fi
 
+echo "Creating extension package..."
+echo "Target: $ZIP_FILE"
+
 # Create zip from root directory
-zip -r "$ZIP_FILE" . \
-    -i "manifest.json" \
-    -i "src/background/*" \
-    -i "src/content/*" \
-    -i "src/panel/*" \
-    -i "src/utils/*" \
-    -i "public/*" \
-    -i "public/images/*" \
-    -i "public/styles/*" \
-    -i "public/devtools.html" \
-    -i "public/panel.html" \
-    -i "lib/*" \
-    -x "*extensions*" \
-    -x "*.git*" \
-    -x ".history/*" \
-    -x ".lh/*" \
-    -x ".vscode/*" \
-    -x ".github/*" \
-    -x "*.sh" \
-    -x "README.md" \
-    -x "CHANGELOG.md"
+zip -r -v "$ZIP_FILE" \
+    manifest.json \
+    src/background \
+    src/content \
+    src/panel \
+    src/utils \
+    public/images \
+    public/styles \
+    public/*.html \
+    lib \
+    || { echo "Error: Zip creation failed"; exit 1; }
+
+echo "Extension package created successfully at: $ZIP_FILE"
+
+# Verify zip contents
+unzip -l "$ZIP_FILE"
 
 # Configure git
 git config --global user.name "GitHub Actions"
