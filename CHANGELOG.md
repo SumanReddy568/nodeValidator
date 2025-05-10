@@ -1,4 +1,7 @@
 ## [1.0.1] - 2025-05-10
+- zipper fix
+
+## [1.0.1] - 2025-05-10
 - initial commit
 
 # Changelog
