@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Node Validator Panel</title>
+    <link rel="stylesheet" href="styles/panel.css">
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto+Mono&display=swap"
+        rel="stylesheet">
+    <script src="../lib/papaparse.min.js"></script>
+    <style>
+        .product-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .logo-version {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .product-icon {
+            width: 48px;
+            height: 48px;
+        }
+
+        .version {
+            font-size: 14px;
+            color: #666;
+            margin-left: 8px;
+        }
+
+        .github-link {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+        }
+
+        .github-icon {
+            width: 28px;
+            height: 28px;
+            filter: opacity(0.7);
+            transition: filter 0.2s ease;
+        }
+
+        .github-link:hover .github-icon {
+            filter: opacity(1);
+        }
+
+        #headerSection h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="panel-container">
+        <!-- Header (Only shown in upload view) -->
+        <div class="header" id="headerSection">
+            <div class="product-info">
+                <div class="logo-version">
+                    <img src="images/icon48.png" alt="Node Validator" class="product-icon">
+                    <h1>Node Validator</h1>
+                    <span class="version">v1.0.1</span>
+                </div>
+                <p class="description">Validate target nodes across multiple URLs and export results</p>
+            </div>
+            <a href="https://github.com/sumanreddy568/nodeValidator" target="_blank" class="github-link">
+                <img width="64" height="64" src="https://img.icons8.com/glyph-neue/64/github.png" alt="github"
+                    class="github-icon">
+            </a>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="upload-section" id="uploadSection">
+            <div class="upload-container" id="dropArea">
+                <img src="images/upload.svg" alt="Upload" class="upload-icon">
+                <h3>Upload CSV File</h3>
+                <p>Drag &amp; drop a CSV file or click to browse</p>
+                <p class="format-info">Required columns: <code>url</code>, <code>targetNode</code></p>
+                <input type="file" id="csvFileInput" accept=".csv" hidden>
+            </div>
+        </div>
+
+        <!-- Main Dashboard Section -->
+        <div class="dashboard" id="summarySection" style="display: none;">
+            <div class="dashboard-header">
+                <div class="dashboard-title">
+                    <button id="homeButton" class="icon-button" title="Return to Upload">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                            viewBox="0 0 16 16">
+                            <path
+                                d="M8 1.5a1 1 0 0 1 .707.293l7.147 7.146a1 1 0 0 1-1.414 1.414L8 3.914 1.56 10.353a1 1 0 0 1-1.414-1.414l7.147-7.146A1 1 0 0 1 8 1.5z" />
+                            <path
+                                d="M3 10v4a1 1 0 0 0 1 1h2.5a.5.5 0 0 0 .5-.5v-2.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5V14.5a.5.5 0 0 0 .5.5H13a1 1 0 0 0 1-1v-4" />
+                        </svg>
+                    </button>
+                    <h2>Validation Dashboard</h2>
+                </div>
+                <div class="dashboard-actions">
+                    <button id="newRunButton" class="action-button secondary">New Run</button>
+                    <button id="startValidation" class="action-button primary">Start Validation</button>
+                    <button id="exportResults" class="action-button secondary" disabled>Export Results</button>
+                </div>
+            </div>
+
+            <!-- Stats Summary -->
+            <div class="stats-summary">
+                <div class="stat-card total">
+                    <span class="stat-value" id="totalUrls">0</span>
+                    <span class="stat-label">URLs</span>
+                </div>
+                <div class="stat-card total">
+                    <span class="stat-value" id="totalNodes">0</span>
+                    <span class="stat-label">Nodes</span>
+                </div>
+                <div class="stat-card success">
+                    <span class="stat-value" id="truePositives">0</span>
+                    <span class="stat-label">TP</span>
+                </div>
+                <div class="stat-card warning">
+                    <span class="stat-value" id="falsePositives">0</span>
+                    <span class="stat-label">FP</span>
+                </div>
+                <div class="stat-card danger">
+                    <span class="stat-value" id="falseNegatives">0</span>
+                    <span class="stat-label">FN</span>
+                </div>
+                <div class="stat-card secondary">
+                    <span class="stat-value" id="notValid">0</span>
+                    <span class="stat-label">Invalid</span>
+                </div>
+                <div class="stat-card pending">
+                    <span class="stat-value" id="pending">0</span>
+                    <span class="stat-label">Pending</span>
+                </div>
+            </div>
+
+            <!-- Validation Panel -->
+            <div class="validation-panel">
+                <div class="validation-info">
+                    <h3>Current Node</h3>
+                    <div class="node-info">
+                        <div class="info-item">
+                            <div class="info-header">
+                                <label>URL:</label>
+                                <button class="copy-btn" data-copy="currentUrl" title="Copy URL">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <span id="currentUrl">-</span>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-header">
+                                <label>Selector:</label>
+                                <button class="copy-btn" data-copy="selectorCode" title="Copy Selector">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                        fill="none" stroke="currentColor">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <code id="selectorCode">-</code>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="validation-controls">
+                    <div class="controls-header">
+                        <h3>Mark Status</h3>
+                        <button id="stopValidation" class="action-button danger-btn">Stop</button>
+                    </div>
+                    <div class="status-buttons">
+                        <button id="statusTruePositive" class="status-btn success">True Positive</button>
+                        <button id="statusFalsePositive" class="status-btn warning">False Positive</button>
+                        <button id="statusFalseNegative" class="status-btn danger">False Negative</button>
+                        <button id="statusNotValid" class="status-btn secondary">Not Valid</button>
+                    </div>
+
+                    <div class="comments-field">
+                        <label for="statusNotes">Comments:</label>
+                        <textarea id="statusNotes" placeholder="Add optional comments here..."></textarea>
+                    </div>
+
+                    <div class="navigation">
+                        <button id="nextUrl" class="action-button primary">Next URL</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-container">
+                <div class="progress">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <div class="progress-text" id="progressText">0/0 URLs processed (0%)</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../src/utils/csvUtils.js"></script>
+    <script src="../src/panel/panel.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,69 @@
+// This file initializes the DevTools extension and sets up communication between the DevTools panel and the background script.
+
+// Create a panel with a robust error handler
+try {
+    chrome.devtools.panels.create(
+        "Node Validator",
+        "/public/images/icon.png",
+        "/public/panel.html",
+        function (panel) {
+            console.log("Node Validator panel created");
+
+            // Check for initial dock position when panel is first created
+            checkDockPosition();
+
+            // Handle panel shown event
+            panel.onShown.addListener(function (window) {
+                console.log("Node Validator panel shown");
+
+                // Check dock position when panel is shown
+                checkDockPosition();
+
+                // Add a connection check when panel is shown
+                try {
+                    if (window && window.chrome && window.chrome.runtime) {
+                        window.chrome.runtime.sendMessage({ action: 'PANEL_SHOWN' }, function (response) {
+                            if (window.chrome.runtime.lastError) {
+                                console.warn("Error connecting to extension:", window.chrome.runtime.lastError);
+                            } else {
+                                console.log("Connected to extension background");
+                            }
+                        });
+                    }
+                } catch (err) {
+                    console.error("Error during panel shown:", err);
+                }
+            });
+        }
+    );
+} catch (err) {
+    console.error("Error creating Node Validator panel:", err);
+}
+
+// Function to check the dock position and notify the panel
+function checkDockPosition() {
+    try {
+        // Get the current dock position
+        chrome.devtools.panels.ElementsPanel.createSidebarPane("Dock Detection", function (sidebar) {
+            sidebar.setObject({ status: "Checking dock position..." });
+
+            // Use setExpression to get the dock side
+            sidebar.setExpression("(() => { return { dockSide: '" + chrome.devtools.panels.themeName + "' }; })()", "Dock Info");
+
+            // Remove sidebar right away (we only need it to check the dock position)
+            setTimeout(() => {
+                try {
+                    sidebar.setObject({ status: "Done" });
+                } catch (e) { }
+            }, 100);
+
+            // Send the dock position to the panel
+            chrome.runtime.sendMessage({
+                action: 'DOCK_POSITION',
+                position: chrome.devtools.panels.themeName
+            });
+        });
+    } catch (err) {
+        console.error("Error checking dock position:", err);
+    }
+}
