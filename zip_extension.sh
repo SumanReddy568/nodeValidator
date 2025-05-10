@@ -81,14 +81,20 @@ echo "Target: $ZIP_FILE"
 # Create zip from root directory
 zip -r -v "$ZIP_FILE" \
     manifest.json \
-    src/background \
-    src/content \
-    src/panel \
-    src/utils \
-    public/images \
-    public/styles \
-    public/*.html \
-    lib \
+    src/background/background.js \
+    src/content/content.js \
+    src/panel/panel.js \
+    src/utils/csvUtils.js \
+    public/images/icon16.png \
+    public/images/icon48.png \
+    public/images/icon128.png \
+    public/images/upload.svg \
+    public/styles/content.css \
+    public/styles/panel.css \
+    public/styles/popup.css \
+    public/devtools.html \
+    public/panel.html \
+    lib/papaparse.min.js \
     || { echo "Error: Zip creation failed"; exit 1; }
 
 echo "Extension package created successfully at: $ZIP_FILE"
