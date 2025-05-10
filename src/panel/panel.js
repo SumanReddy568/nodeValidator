@@ -665,6 +665,31 @@ function initializePanel() {
 
         showNotification('Loading next item...', 'info');
 
+        // Check if there are more URLs to validate
+        const hasMoreUrls = currentIndex < validationData.length - 1;
+
+        if (!hasMoreUrls) {
+            // Only show completion if all URLs are processed
+            showNotification('Validation complete!', 'success', 5000);
+
+            if (startValidationBtn) {
+                startValidationBtn.textContent = 'Start Validation';
+                startValidationBtn.disabled = false;
+            }
+
+            if (nextUrlBtn) {
+                nextUrlBtn.disabled = true;
+            }
+
+            if (stopValidationBtn) {
+                stopValidationBtn.textContent = 'Stopped';
+                stopValidationBtn.disabled = true;
+            }
+
+            updateProgressUI(validationData.length, validationData.length);
+            return;
+        }
+
         chrome.runtime.sendMessage({ action: 'NEXT_URL' }, function (nextResponse) {
             console.log('Next URL response:', nextResponse);
 
@@ -680,37 +705,25 @@ function initializePanel() {
                     }
 
                     updateCurrentValidation();
-                    updateProgressUI(currentIndex, validationData.length);
+                    updateProgressUI(currentIndex + 1, validationData.length);
                     showNotification('Ready for validation', 'success');
                 });
             } else {
-                const completeMsg = nextResponse && nextResponse.message ? nextResponse.message : 'Validation complete!';
-                showNotification(completeMsg, 'success', 5000);
-
-                if (startValidationBtn) {
-                    startValidationBtn.textContent = 'Start Validation';
-                    startValidationBtn.disabled = false;
-                }
-
-                if (nextUrlBtn) {
-                    nextUrlBtn.disabled = true;
-                }
-
-                if (stopValidationBtn) {
-                    stopValidationBtn.textContent = 'Stopped';
-                    stopValidationBtn.disabled = true;
-                }
-
-                updateProgressUI(validationData.length, validationData.length);
-
-                chrome.storage.local.get(['validationData', 'currentIndex'], function (data) {
-                    if (Array.isArray(data.validationData)) {
-                        validationData = data.validationData;
-                        updateSummaryUI(generateSummary(validationData));
-                    }
-                });
+                handleValidationError(nextResponse);
             }
         });
+    }
+
+    // Add new helper function to handle validation errors
+    function handleValidationError(response) {
+        const errorMsg = response && response.message ? response.message : 'Error moving to next URL';
+        showNotification(errorMsg, 'error', 5000);
+
+        // Re-enable navigation
+        if (nextUrlBtn) {
+            nextUrlBtn.disabled = false;
+            nextUrlBtn.textContent = 'Next URL';
+        }
     }
 
     // Handle home button click - return to upload view
@@ -1382,3 +1395,4 @@ function initializePanel() {
         }
     });
 }
+
