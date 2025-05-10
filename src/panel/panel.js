@@ -15,6 +15,42 @@ window.addEventListener('error', function (event) {
     }
 });
 
+// Theme management
+const themeToggle = document.getElementById('themeToggle');
+const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+
+// Load saved theme preference or use system preference
+const loadTheme = () => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        themeToggle.checked = savedTheme === 'dark';
+    } else {
+        const systemTheme = prefersDarkScheme.matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', systemTheme);
+        themeToggle.checked = systemTheme === 'dark';
+    }
+};
+
+// Handle theme toggle
+themeToggle.addEventListener('change', () => {
+    const theme = themeToggle.checked ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+});
+
+// Listen for system theme changes
+prefersDarkScheme.addEventListener('change', (e) => {
+    if (!localStorage.getItem('theme')) {
+        const systemTheme = e.matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', systemTheme);
+        themeToggle.checked = systemTheme === 'dark';
+    }
+});
+
+// Initialize theme on page load
+loadTheme();
+
 // Show a fallback UI when something goes wrong
 function showFallbackUI(message) {
     // Clear any existing content
@@ -187,25 +223,31 @@ function initializePanel() {
     }
 
     // More robust function to display the current validation info
-    function updateCurrentValidation(url, selector) {
+    function updateCurrentValidation() {
         try {
             const currentUrlEl = document.getElementById('currentUrl');
             const selectorCodeEl = document.getElementById('selectorCode');
 
-            // Always update with the actual values from validationData
-            if (currentUrlEl && validationData[currentIndex]) {
-                currentUrlEl.textContent = validationData[currentIndex].url;
-            }
-            if (selectorCodeEl && validationData[currentIndex]) {
-                selectorCodeEl.textContent = validationData[currentIndex].targetNode;
-            }
+            if (validationData && validationData[currentIndex]) {
+                const currentData = validationData[currentIndex];
 
-            console.log('Updated validation display:', {
-                url: validationData[currentIndex].url,
-                selector: validationData[currentIndex].targetNode
-            });
+                if (currentUrlEl) {
+                    currentUrlEl.textContent = currentData.url || '-';
+                }
+
+                if (selectorCodeEl) {
+                    selectorCodeEl.textContent = currentData.targetNode || '-';
+                }
+
+                // Refresh copy buttons after updating content
+                setTimeout(setupCopyButtons, 0);
+            } else {
+                if (currentUrlEl) currentUrlEl.textContent = '-';
+                if (selectorCodeEl) selectorCodeEl.textContent = '-';
+            }
         } catch (error) {
             console.error('Error updating validation display:', error);
+            showNotification('Error updating display', 'error');
         }
     }
 
@@ -214,7 +256,6 @@ function initializePanel() {
         try {
             if (validationData && validationData[currentIndex]) {
                 const url = validationData[currentIndex].url;
-                console.log('Showing status marking for:', { url, selector });
 
                 updateCurrentValidation(url, selector || validationData[currentIndex].targetNode || '-');
 
@@ -357,28 +398,18 @@ function initializePanel() {
                         validationData[message.index].status = message.status;
                         validationData[message.index].comments = message.comments || '';
 
+                        // Important: Update the current validation display even in automated mode
+                        if (message.automated) {
+                            currentIndex = message.index;
+                            updateCurrentValidation();
+                        }
+
                         // Update the UI to reflect changes immediately
                         updateSummaryUI(generateSummary(validationData));
 
                         // Show notification for automated updates
                         if (message.automated) {
-                            const statusMsg = message.status === 'True Positive' ?
-                                'Element found and marked as True Positive.' :
-                                'Element not found and marked as Not Valid.';
-
-                            // Update the automation status display
-                            const autoStatus = document.getElementById('automation-status');
-                            if (autoStatus) {
-                                const progress = `${message.index + 1}/${validationData.length}`;
-                                autoStatus.textContent = `Processing: ${progress} - ${statusMsg}`;
-
-                                // If this is the last item, show completing message
-                                if (message.isLast) {
-                                    autoStatus.textContent = `Completing validation... (${progress} processed)`;
-                                }
-                            }
-
-                            // Also update progress bar immediately
+                            handleAutomationUpdate(message);
                             updateProgressUI(message.index + 1, validationData.length);
                         }
                     }
@@ -554,6 +585,9 @@ function initializePanel() {
                         notification.textContent = 'Automated validation in progress...';
                         document.querySelector('.validation-controls').appendChild(notification);
 
+                        // Initial scroll to automation status
+                        notification.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
                         // Disable status buttons in automated mode
                         document.querySelectorAll('.status-btn').forEach(btn => {
                             btn.disabled = true;
@@ -702,11 +736,11 @@ function initializePanel() {
                 chrome.storage.local.get(['currentIndex'], function (data) {
                     if (typeof data.currentIndex === 'number') {
                         currentIndex = data.currentIndex;
+                        // Explicitly update current validation display
+                        updateCurrentValidation();
+                        updateProgressUI(currentIndex + 1, validationData.length);
+                        showNotification('Ready for validation', 'success');
                     }
-
-                    updateCurrentValidation();
-                    updateProgressUI(currentIndex + 1, validationData.length);
-                    showNotification('Ready for validation', 'success');
                 });
             } else {
                 handleValidationError(nextResponse);
@@ -1176,44 +1210,70 @@ function initializePanel() {
     }
 
     // Setup copy buttons with feedback
-    document.querySelectorAll('.copy-btn').forEach(button => {
-        button.addEventListener('click', function () {
-            const targetId = this.getAttribute('data-copy');
-            const targetEl = document.getElementById(targetId);
-            if (targetEl) {
-                const textToCopy = targetEl.textContent;
+    function setupCopyButtons() {
+        document.querySelectorAll('.copy-btn').forEach(button => {
+            // Remove existing listeners
+            button.replaceWith(button.cloneNode(true));
 
-                // Show copy feedback near the button
-                const feedbackEl = document.createElement('span');
-                feedbackEl.textContent = 'Copied!';
-                feedbackEl.style.position = 'absolute';
-                feedbackEl.style.right = '100%';
-                feedbackEl.style.marginRight = '8px';
-                feedbackEl.style.color = '#4CAF50';
-                feedbackEl.style.fontSize = '12px';
-                feedbackEl.style.fontWeight = '500';
+            // Get fresh button reference
+            const newButton = document.querySelector(`[data-copy="${button.getAttribute('data-copy')}"]`);
 
-                this.parentNode.style.position = 'relative';
-                this.parentNode.appendChild(feedbackEl);
+            newButton.addEventListener('click', function () {
+                try {
+                    const targetId = this.getAttribute('data-copy');
+                    const targetEl = document.getElementById(targetId);
 
-                // Copy to clipboard
-                navigator.clipboard.writeText(textToCopy).then(() => {
-                    // Visual feedback
-                    button.style.color = '#4CAF50';
+                    if (!targetEl || targetEl.textContent === '-') {
+                        return;
+                    }
 
-                    // Remove feedback after 2 seconds
+                    const text = targetEl.textContent.trim();
+
+                    // Create temporary textarea for copying
+                    const textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+
+                    // Execute copy command
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+
+                    // Show success feedback
+                    this.style.color = 'var(--success)';
+                    const feedback = document.createElement('div');
+                    feedback.textContent = 'Copied!';
+                    feedback.style.position = 'absolute';
+                    feedback.style.right = '40px';
+                    feedback.style.top = '50%';
+                    feedback.style.transform = 'translateY(-50%)';
+                    feedback.style.color = document.documentElement.getAttribute('data-theme') === 'dark'
+                        ? 'var(--primary-light)'
+                        : 'var(--success)';
+                    feedback.style.fontSize = '12px';
+                    feedback.style.fontWeight = '500';
+                    feedback.style.pointerEvents = 'none';
+
+                    this.parentElement.style.position = 'relative';
+                    this.parentElement.appendChild(feedback);
+
+                    // Remove feedback after delay
                     setTimeout(() => {
-                        button.style.color = '';
-                        feedbackEl.remove();
+                        this.style.color = '';
+                        if (feedback.parentNode) {
+                            feedback.remove();
+                        }
                     }, 2000);
-                }).catch(err => {
-                    console.error('Failed to copy text:', err);
-                    feedbackEl.textContent = 'Failed to copy';
-                    feedbackEl.style.color = '#F44336';
-                });
-            }
+
+                } catch (err) {
+                    console.error('Copy failed:', err);
+                    showNotification('Failed to copy text', 'error');
+                }
+            });
         });
-    });
+    }
 
     // Add the UI toggle to the dashboard header (before the dashboard-actions div)
     function addModeToggle() {
@@ -1354,6 +1414,7 @@ function initializePanel() {
     function start() {
         addNotificationStyles();
         setupStatusButtons();
+        setupCopyButtons();
         addModeToggle();
         initializeDataHandling();
         initializeState();
@@ -1394,5 +1455,26 @@ function initializePanel() {
             showDockPositionWarning(data.dockPosition);
         }
     });
+
+    // Handle automation updates
+    function handleAutomationUpdate(message) {
+        const autoStatus = document.getElementById('automation-status');
+        if (autoStatus) {
+            const progress = `${message.index + 1}/${validationData.length}`;
+            const statusMsg = message.status === 'True Positive' ?
+                'Element found and marked as True Positive.' :
+                'Element not found and marked as Not Valid.';
+
+            autoStatus.textContent = `Processing: ${progress} - ${statusMsg}`;
+
+            // Scroll to the automation status banner
+            autoStatus.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+            // If this is the last item, show completing message
+            if (message.isLast) {
+                autoStatus.textContent = `Completing validation... (${progress} processed)`;
+            }
+        }
+    }
 }
 
