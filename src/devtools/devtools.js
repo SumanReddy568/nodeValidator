@@ -43,27 +43,13 @@ try {
 // Function to check the dock position and notify the panel
 function checkDockPosition() {
     try {
-        // Get the current dock position
-        chrome.devtools.panels.ElementsPanel.createSidebarPane("Dock Detection", function (sidebar) {
-            sidebar.setObject({ status: "Checking dock position..." });
-
-            // Use setExpression to get the dock side
-            sidebar.setExpression("(() => { return { dockSide: '" + chrome.devtools.panels.themeName + "' }; })()", "Dock Info");
-
-            // Remove sidebar right away (we only need it to check the dock position)
-            setTimeout(() => {
-                try {
-                    sidebar.setObject({ status: "Done" });
-                } catch (e) { }
-            }, 100);
-
-            // Send the dock position to the panel
-            chrome.runtime.sendMessage({
-                action: 'DOCK_POSITION',
-                position: chrome.devtools.panels.themeName
-            });
+        // Signal the panel to evaluate its own layout and display warning if necessary.
+        // The panel will use its dimensions to infer if it's side-docked.
+        chrome.runtime.sendMessage({
+            action: 'EVALUATE_DOCK_MODE_REQUEST' // New action name
         });
+        console.log("Requested panel to evaluate its dock mode.");
     } catch (err) {
-        console.error("Error checking dock position:", err);
+        console.error("Error requesting panel to evaluate dock mode:", err);
     }
 }

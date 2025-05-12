@@ -151,10 +151,13 @@ function initializePanel() {
     const exportResultsBtn = document.getElementById('exportResults');
     const uploadSection = document.getElementById('uploadSection');
     const startValidationBtn = document.getElementById('startValidation');
+    const resumeValidationBtn = document.getElementById('resumeValidation');
     const stopValidationBtn = document.getElementById('stopValidation');
     const headerSection = document.getElementById('headerSection');
     const homeButton = document.getElementById('homeButton');
     const newRunButton = document.getElementById('newRunButton');
+    const startIndexInput = document.getElementById('startIndex');
+    const totalIndexCountEl = document.getElementById('totalIndexCount');
 
     // Summary Elements
     const totalUrlsEl = document.getElementById('totalUrls');
@@ -173,12 +176,20 @@ function initializePanel() {
         statusTruePositive: 'True Positive',
         statusFalsePositive: 'False Positive',
         statusFalseNegative: 'False Negative',
-        statusNotValid: 'Not Valid'
+        statusNotValid: 'Not Valid',
+        statusSkip: 'Skipped' // Add Skip status
     };
 
     let selectedStatus = null;
-
     let automatedMode = false; // Default to manual mode
+    let validationStopped = false; // Track if validation was stopped
+    let currentStartIndex = 0; // Track the current start index
+    let processingNextUrl = false; // Add flag to prevent double-clicking Next URL button
+
+    // Helper to get filtered data based on currentStartIndex
+    function getActiveValidationData() {
+        return validationData.slice(currentStartIndex);
+    }
 
     // Improved status button setup with better visual feedback
     function setupStatusButtons() {
@@ -196,6 +207,14 @@ function initializePanel() {
                     button.classList.add('selected');
                     selectedStatus = statusButtons[buttonId];
 
+                    // If Skip is selected, automatically add a comment
+                    if (buttonId === 'statusSkip' && statusNotes) {
+                        // Don't overwrite existing comment if there is one
+                        if (!statusNotes.value) {
+                            statusNotes.value = 'Skipped by user';
+                        }
+                    }
+
                     // Preview the status change in stats
                     previewStatusChange(buttonId);
                 };
@@ -208,18 +227,26 @@ function initializePanel() {
         // Only update if we have validation data
         if (!validationData || !validationData[currentIndex]) return;
 
-        // Get current status if any
-        const currentStatus = validationData[currentIndex].status;
-
-        // Create a copy of validation data with updated status
+        // Make a copy of validation data
         const updatedData = [...validationData];
         updatedData[currentIndex] = {
             ...updatedData[currentIndex],
             status: statusButtons[statusBtnId]
         };
 
-        // Update UI with the previewed change
-        updateSummaryUI(generateSummary(updatedData));
+        // Always use filtered data for summary UI updates
+        const activeData = updatedData.slice(currentStartIndex);
+
+        // Store the temp status selection in the local storage to persist it
+        chrome.storage.local.set({
+            tempStatusSelection: {
+                index: currentIndex,
+                status: statusButtons[statusBtnId],
+                currentStartIndex: currentStartIndex
+            }
+        });
+
+        updateSummaryUI(generateSummary(activeData));
     }
 
     // More robust function to display the current validation info
@@ -404,19 +431,24 @@ function initializePanel() {
                             updateCurrentValidation();
                         }
 
-                        // Update the UI to reflect changes immediately
-                        updateSummaryUI(generateSummary(validationData));
+                        // Update the UI with filtered data
+                        const activeData = getActiveValidationData();
+                        updateSummaryUI(generateSummary(activeData));
 
                         // Show notification for automated updates
                         if (message.automated) {
                             handleAutomationUpdate(message);
-                            updateProgressUI(message.index + 1, validationData.length);
+                            // Use filtered progress for UI
+                            const localIndex = currentIndex - currentStartIndex;
+                            updateProgressUI(localIndex + 1, activeData.length);
                         }
                     }
                 } else {
                     console.error('Background script reported error:', message.error);
                     showNotification(`Status update error: ${message.error}`, 'error');
                 }
+                // Return to keep channel open for async response
+                return true;
             }
             else if (message.action === 'VALIDATION_COMPLETE') {
                 console.log('Received validation complete message:', message);
@@ -427,9 +459,10 @@ function initializePanel() {
                         validationData = data.validationData;
                         currentIndex = data.currentIndex || validationData.length;
 
-                        // Update UI with final data
-                        updateSummaryUI(generateSummary(validationData));
-                        updateProgressUI(validationData.length, validationData.length);
+                        // Use filtered data for summary and progress
+                        const activeData = getActiveValidationData();
+                        updateSummaryUI(generateSummary(activeData));
+                        updateProgressUI(activeData.length, activeData.length);
                     }
 
                     // Update UI to show validation is complete
@@ -445,6 +478,11 @@ function initializePanel() {
 
                     if (nextUrlBtn) {
                         nextUrlBtn.disabled = true;
+                    }
+
+                    // Hide the resume button since validation is complete
+                    if (resumeValidationBtn) {
+                        resumeValidationBtn.style.display = 'none';
                     }
 
                     // Remove any automation notification
@@ -517,6 +555,49 @@ function initializePanel() {
         }
     });
 
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+        if (message.action === 'EVALUATE_DOCK_MODE_REQUEST') {
+            console.log("Panel received EVALUATE_DOCK_MODE_REQUEST.");
+
+            // Heuristic: if panel is significantly taller than it is wide,
+            // it's likely docked to the side (left/right).
+            // Adjust the multiplier (e.g., 1.25) as needed based on testing.
+            const isLikelySideDocked = window.innerHeight > window.innerWidth * 1.25;
+
+            const existingBanner = document.querySelector('.dock-warning-banner');
+            if (existingBanner) {
+                existingBanner.remove(); // Remove any previous banner
+            }
+
+            if (isLikelySideDocked) {
+                const banner = document.createElement('div');
+                banner.className = 'dock-warning-banner'; // Ensure this class matches your CSS in panel.html
+                banner.textContent = "⚠️ Node Validator works best when DevTools is docked to the bottom. Side-docked mode may cause UI issues.";
+
+                // Insert banner at the top of the body
+                if (document.body) {
+                    document.body.insertBefore(banner, document.body.firstChild);
+                } else {
+                    // Fallback if body is not ready, though DOMContentLoaded should handle this
+                    document.addEventListener('DOMContentLoaded', () => {
+                        document.body.insertBefore(banner, document.body.firstChild);
+                    });
+                }
+
+
+                setTimeout(() => {
+                    if (banner.parentNode) {
+                        banner.parentNode.removeChild(banner);
+                    }
+                }, 8000); // Keep banner for 8 seconds
+                console.log("Panel determined it is likely side-docked. Showing warning.");
+            } else {
+                console.log("Panel determined it is likely bottom-docked or undocked (wide). No warning.");
+            }
+        }
+        // Add other message handlers from your panel.js if they exist, or this can be the only one
+    });
+
     // Update the start validation click handler for more robust initialization
     if (startValidationBtn) {
         startValidationBtn.addEventListener('click', function () {
@@ -525,19 +606,47 @@ function initializePanel() {
                 return;
             }
 
-            // Reset all statuses and comments for a fresh run
-            validationData = validationData.map(row => ({
-                ...row,
-                status: undefined,
-                comments: ''
-            }));
+            // Get starting index from input
+            const startFromIndex = parseInt(startIndexInput.value, 10) || 0;
 
-            // Always start from index 0
-            currentIndex = 0;
+            // Validate index is within range
+            if (startFromIndex < 0 || startFromIndex >= validationData.length) {
+                showNotification(`Invalid start index. Must be between 0 and ${validationData.length - 1}`, 'error');
+                return;
+            }
+
+            // Set the current start index for filtering
+            currentStartIndex = startFromIndex;
+
+            // Also set currentIndex to be the same as startFromIndex
+            currentIndex = startFromIndex;
+
+            // Filter validation data to only include rows after the start index
+            const filteredData = getActiveValidationData();
+
+            // Store the filter start index in storage for persistence
+            chrome.storage.local.set({ filterStartIndex: currentStartIndex });
+
+            // Update the summary UI with filtered data
+            updateSummaryUI(generateSummary(filteredData));
+
+            // Reset validation status only if not resuming
+            if (!validationStopped) {
+                // Don't reset validationData statuses - keep existing statuses
+                // We're just changing where we start from
+            }
+
             selectedStatus = null;
+            validationStopped = false;
+            processingNextUrl = false; // Reset processing flag
+
+            // Hide resume button
+            if (resumeValidationBtn) {
+                resumeValidationBtn.style.display = 'none';
+            }
 
             // Reset progress bar and text
-            updateProgressUI(0, validationData.length);
+            updateProgressUI(0, filteredData.length);
 
             // Reset stop button
             if (stopValidationBtn) {
@@ -552,14 +661,17 @@ function initializePanel() {
             }
 
             // Show mode notification
-            showNotification(`Starting validation in ${automatedMode ? 'automated' : 'manual'} mode...`, 'info');
+            showNotification(`Starting validation ${startFromIndex > 0 ? `from index ${startFromIndex}` : ''} in ${automatedMode ? 'automated' : 'manual'} mode...`, 'info');
 
             chrome.runtime.sendMessage({
                 action: 'START_VALIDATION',
                 payload: {
                     url: validationData[currentIndex].url,
                     targetNode: validationData[currentIndex].targetNode,
-                    automated: automatedMode
+                    automated: automatedMode,
+                    startIndex: currentIndex,
+                    resuming: validationStopped,
+                    filterStartIndex: currentStartIndex // Pass the filter start index
                 }
             }, function (response) {
                 if (!response || !response.success) {
@@ -569,10 +681,7 @@ function initializePanel() {
                     startValidationBtn.disabled = true;
                     setUISection('summary');
                     setupStatusButtons();
-                    updateCurrentValidation(
-                        validationData[currentIndex].url,
-                        validationData[currentIndex].targetNode
-                    );
+                    updateCurrentValidation();
 
                     // In manual mode, enable Next URL button. In automated mode, disable it
                     if (nextUrlBtn) nextUrlBtn.disabled = automatedMode;
@@ -600,8 +709,60 @@ function initializePanel() {
                         showNotification('Please mark the status for each node manually.', 'info', 5000);
                     }
 
-                    // Also update summary UI to reflect reset
-                    updateSummaryUI(generateSummary(validationData));
+                    // Also update summary UI to reflect filtered view
+                    updateSummaryUI(generateSummary(filteredData));
+
+                    // Update progress UI to show current progress in filtered view
+                    updateProgressUI(0, filteredData.length);
+
+                    // Enable export button if we have results
+                    if (exportResultsBtn) {
+                        exportResultsBtn.disabled = !hasResults(filteredData);
+                    }
+                }
+            });
+        });
+    }
+
+    // Handle Resume Validation
+    if (resumeValidationBtn) {
+        resumeValidationBtn.addEventListener('click', function () {
+            if (!validationData || validationData.length === 0) {
+                showNotification('No validation data available to resume.', 'error');
+                return;
+            }
+
+            // Use the stored currentIndex as the starting point for resumption
+            chrome.storage.local.get(['currentIndex'], function (data) {
+                let startFromIndex = currentIndex;
+
+                // If we have a stored index, use that
+                if (data && typeof data.currentIndex === 'number') {
+                    startFromIndex = data.currentIndex;
+                }
+
+                // Make sure we don't go past the end of the data
+                if (startFromIndex >= validationData.length) {
+                    startFromIndex = validationData.length - 1;
+                }
+
+                // Update the startIndex input
+                if (startIndexInput) {
+                    startIndexInput.value = startFromIndex;
+                }
+
+                // Prevent double incrementing by resetting the current index
+                currentIndex = startFromIndex;
+
+                // Hide resume button
+                resumeValidationBtn.style.display = 'none';
+
+                // Reset validation stopped flag
+                validationStopped = false;
+
+                // Call start validation button click handler
+                if (startValidationBtn) {
+                    startValidationBtn.click();
                 }
             });
         });
@@ -611,12 +772,21 @@ function initializePanel() {
     if (stopValidationBtn) {
         stopValidationBtn.addEventListener('click', function () {
             showCustomConfirm('Are you sure you want to stop validation? You can resume later.', function () {
-                // Reset UI state
+                // Set validation stopped flag
+                validationStopped = true;
+
+                // Reset UI state to allow resuming
                 if (startValidationBtn) {
-                    startValidationBtn.textContent = 'Stopped';
+                    startValidationBtn.textContent = 'Start Validation';
                     startValidationBtn.disabled = false;
                 }
-                // Also update the stop button itself
+
+                // Show resume button
+                if (resumeValidationBtn) {
+                    resumeValidationBtn.style.display = 'inline-block';
+                }
+
+                // Update the stop button itself
                 stopValidationBtn.textContent = 'Stopped';
                 stopValidationBtn.disabled = true;
 
@@ -636,12 +806,19 @@ function initializePanel() {
         nextUrlBtn.onclick = function () {
             console.log('Next URL button clicked, selected status:', selectedStatus);
 
+            // Prevent multiple clicks
+            if (processingNextUrl) {
+                console.log('Already processing next URL request, ignoring');
+                return;
+            }
+
             if (!selectedStatus) {
                 showNotification('Please select a status for this node.', 'error');
                 return;
             }
 
             // Disable the button while processing to prevent double-clicks
+            processingNextUrl = true;
             nextUrlBtn.disabled = true;
             nextUrlBtn.textContent = 'Updating...';
 
@@ -651,6 +828,11 @@ function initializePanel() {
             if (validationData[currentIndex]) {
                 validationData[currentIndex].status = selectedStatus;
                 validationData[currentIndex].comments = comments;
+
+                // Also update the storage with the new filterStartIndex for persistence
+                chrome.storage.local.set({
+                    filterStartIndex: currentStartIndex
+                });
             }
 
             // Then send message to background
@@ -682,6 +864,7 @@ function initializePanel() {
                     // Move to next URL
                     moveToNextUrl();
                 } else {
+                    processingNextUrl = false;
                     nextUrlBtn.disabled = false;
                     nextUrlBtn.textContent = 'Next URL';
                     showNotification('Failed to update status. Please try again.', 'error');
@@ -699,11 +882,17 @@ function initializePanel() {
 
         showNotification('Loading next item...', 'info');
 
-        // Check if there are more URLs to validate
-        const hasMoreUrls = currentIndex < validationData.length - 1;
+        // Store the current index before navigation for reference
+        const previousIndex = currentIndex;
+
+        // Only consider remaining items after currentStartIndex
+        const activeData = getActiveValidationData();
+        const localIndex = currentIndex - currentStartIndex;
+        const hasMoreUrls = localIndex < activeData.length - 1;
 
         if (!hasMoreUrls) {
-            // Only show completion if all URLs are processed
+            // No more URLs to process in the filtered view
+            processingNextUrl = false;
             showNotification('Validation complete!', 'success', 5000);
 
             if (startValidationBtn) {
@@ -713,6 +902,7 @@ function initializePanel() {
 
             if (nextUrlBtn) {
                 nextUrlBtn.disabled = true;
+                nextUrlBtn.textContent = 'Next URL'; // Reset text from "Loading..."
             }
 
             if (stopValidationBtn) {
@@ -720,25 +910,52 @@ function initializePanel() {
                 stopValidationBtn.disabled = true;
             }
 
-            updateProgressUI(validationData.length, validationData.length);
+            updateProgressUI(activeData.length, activeData.length);
+            updateSummaryUI(generateSummary(activeData));
+
+            // Enable export button if we have results
+            if (exportResultsBtn) {
+                exportResultsBtn.disabled = !hasResults(activeData);
+            }
             return;
         }
 
         chrome.runtime.sendMessage({ action: 'NEXT_URL' }, function (nextResponse) {
+            // Reset the processing flag to allow future clicks
+            processingNextUrl = false;
+
             console.log('Next URL response:', nextResponse);
 
             if (nextUrlBtn) {
                 nextUrlBtn.disabled = false;
-                nextUrlBtn.textContent = 'Next URL';
+                nextUrlBtn.textContent = 'Next URL'; // Reset button text
             }
 
             if (nextResponse && nextResponse.success) {
                 chrome.storage.local.get(['currentIndex'], function (data) {
                     if (typeof data.currentIndex === 'number') {
                         currentIndex = data.currentIndex;
+
+                        // Update the start index input to match the current index
+                        // This ensures start index stays in sync with current progress
+                        if (startIndexInput && typeof startIndexInput.value === 'string') {
+                            startIndexInput.value = currentStartIndex.toString(); // Keep the filter start point
+                        }
+
                         // Explicitly update current validation display
                         updateCurrentValidation();
-                        updateProgressUI(currentIndex + 1, validationData.length);
+
+                        // Progress and summary for filtered data
+                        const newActiveData = getActiveValidationData(); // Re-fetch active data
+                        const newLocalIndex = currentIndex - currentStartIndex;
+                        updateProgressUI(newLocalIndex + 1, newActiveData.length);
+                        updateSummaryUI(generateSummary(newActiveData));
+
+                        // Enable export button if we have results
+                        if (exportResultsBtn) {
+                            exportResultsBtn.disabled = !hasResults(newActiveData);
+                        }
+
                         showNotification('Ready for validation', 'success');
                     }
                 });
@@ -779,6 +996,10 @@ function initializePanel() {
                     startValidationBtn.disabled = false;
                 }
 
+                if (resumeValidationBtn) {
+                    resumeValidationBtn.style.display = 'none';
+                }
+
                 if (stopValidationBtn) {
                     stopValidationBtn.textContent = 'Stop';
                     stopValidationBtn.disabled = false;
@@ -792,6 +1013,8 @@ function initializePanel() {
                 validationData = [];
                 currentIndex = 0;
                 selectedStatus = null;
+                validationStopped = false;
+                currentStartIndex = 0;
 
                 // Reset any automation state
                 automatedMode = false;
@@ -799,6 +1022,14 @@ function initializePanel() {
                 if (modeToggle) modeToggle.checked = false;
                 const modeText = document.getElementById('modeText');
                 if (modeText) modeText.textContent = 'Manual Mode';
+
+                // Reset start index input
+                if (startIndexInput) {
+                    startIndexInput.value = 0;
+                }
+                if (totalIndexCountEl) {
+                    totalIndexCountEl.textContent = '0';
+                }
 
                 // Make sure status buttons are enabled
                 document.querySelectorAll('.status-btn').forEach(btn => {
@@ -853,21 +1084,65 @@ function initializePanel() {
     function initializeState() {
         if (initialized) return;
 
-        chrome.storage.local.get(['validationData', 'currentIndex'], function (data) {
+        chrome.storage.local.get(['validationData', 'currentIndex', 'validationStopped', 'filterStartIndex', 'tempStatusSelection'], function (data) {
             try {
                 // Always ensure we have a valid array
                 validationData = Array.isArray(data.validationData) ? data.validationData : [];
                 currentIndex = typeof data.currentIndex === 'number' ? data.currentIndex : 0;
+                validationStopped = !!data.validationStopped;
+
+                // Recover filter start index if available
+                if (typeof data.filterStartIndex === 'number') {
+                    currentStartIndex = data.filterStartIndex;
+                } else {
+                    currentStartIndex = 0;
+                }
+
+                // Make sure the start index input reflects the current filter start
+                if (startIndexInput && validationData.length > 0) {
+                    startIndexInput.value = currentStartIndex.toString();
+                    startIndexInput.max = validationData.length - 1;
+                }
+
+                // Restore any temporary status selection
+                if (data.tempStatusSelection &&
+                    typeof data.tempStatusSelection.index === 'number' &&
+                    data.tempStatusSelection.index === currentIndex) {
+
+                    // Make sure currentStartIndex matches what was saved
+                    if (typeof data.tempStatusSelection.currentStartIndex === 'number') {
+                        currentStartIndex = data.tempStatusSelection.currentStartIndex;
+                    }
+
+                    // Restore the selected status button
+                    Object.entries(statusButtons).forEach(([buttonId, statusValue]) => {
+                        if (statusValue === data.tempStatusSelection.status) {
+                            const button = document.getElementById(buttonId);
+                            if (button) {
+                                setTimeout(() => {
+                                    // Select this button after UI is ready
+                                    Object.keys(statusButtons).forEach(id => {
+                                        const btn = document.getElementById(id);
+                                        if (btn) btn.classList.remove('selected');
+                                    });
+                                    button.classList.add('selected');
+                                    selectedStatus = statusValue;
+                                }, 100);
+                            }
+                        }
+                    });
+                }
 
                 updateUI();
                 initialized = true;
 
-                console.log('Panel state initialized with', validationData.length, 'records');
+                console.log('Panel state initialized with', validationData.length, 'records, currentIndex:', currentIndex, 'filterStartIndex:', currentStartIndex);
             } catch (err) {
                 console.error('Error initializing state:', err);
                 // Reset to a safe state
                 validationData = [];
                 currentIndex = 0;
+                currentStartIndex = 0;
                 setUISection('upload');
             }
         });
@@ -881,18 +1156,50 @@ function initializePanel() {
                 updateSummaryUI(generateSummary([]));
                 updateProgressUI(0, 0);
                 if (exportResultsBtn) exportResultsBtn.disabled = true;
-            } else if (currentIndex === 0 && !hasResults(validationData)) {
-                setUISection('summary');
-                updateSummaryUI(generateSummary(validationData));
-                updateProgressUI(0, validationData.length);
-                if (exportResultsBtn) exportResultsBtn.disabled = true;
+                if (resumeValidationBtn) resumeValidationBtn.style.display = 'none';
             } else {
+                // Always show summary if we have data
                 setUISection('summary');
-                updateProgressUI(currentIndex, validationData.length);
-                updateSummaryUI(generateSummary(validationData));
+
+                // Use filtered data for progress, summary, and export
+                const activeData = getActiveValidationData();
+
+                // Calculate the relative position in the filtered data
+                const relativeIndex = Math.max(0, currentIndex - currentStartIndex);
+
+                updateProgressUI(relativeIndex, activeData.length);
+                updateSummaryUI(generateSummary(activeData));
+
                 if (exportResultsBtn) {
-                    exportResultsBtn.disabled = !hasResults(validationData);
+                    exportResultsBtn.disabled = !hasResults(activeData);
                 }
+
+                // Show resume button if validation was stopped mid-way
+                if (resumeValidationBtn && validationStopped) {
+                    resumeValidationBtn.style.display = 'inline-block';
+                }
+            }
+
+            // Update total index count - show the absolute total, not filtered
+            if (totalIndexCountEl && validationData.length > 0) {
+                totalIndexCountEl.textContent = validationData.length - 1;
+            }
+
+            // Set max value for start index input
+            if (startIndexInput && validationData.length > 0) {
+                startIndexInput.max = validationData.length - 1;
+            }
+
+            // Make sure current validation is displayed correctly
+            updateCurrentValidation();
+
+            // Reset processingNextUrl flag
+            processingNextUrl = false;
+
+            // Reset Next URL button if it was stuck
+            if (nextUrlBtn) {
+                nextUrlBtn.disabled = false;
+                nextUrlBtn.textContent = 'Next URL';
             }
         } catch (err) {
             console.error('Error updating UI:', err);
@@ -955,16 +1262,19 @@ function initializePanel() {
     // Button event listeners
     if (exportResultsBtn) {
         exportResultsBtn.addEventListener('click', function () {
-            if (!validationData || validationData.length === 0) {
+            // Only export filtered data (activeData)
+            const activeData = getActiveValidationData();
+            if (!activeData || activeData.length === 0) {
                 alert('No results to export.');
                 return;
             }
 
             // Ensure comments are included from the UI state
-            const dataToExport = validationData.map((row, idx) => {
+            const dataToExport = activeData.map((row, idx) => {
                 // If the current index is the one being edited, get the latest comments from the textarea
                 let comments = row.comments || '';
-                if (idx === currentIndex && statusNotes && statusNotes.value) {
+                // idx is relative to activeData, so add currentStartIndex to compare with currentIndex
+                if ((idx + currentStartIndex) === currentIndex && statusNotes && statusNotes.value) {
                     comments = statusNotes.value;
                 }
                 return {
@@ -978,63 +1288,6 @@ function initializePanel() {
             exportCsv(dataToExport);
         });
     }
-
-    // Check for existing data
-    chrome.storage.local.get(['validationData', 'currentIndex'], function (data) {
-        // Defensive: Ensure data is always an array
-        if (!Array.isArray(data.validationData)) {
-            validationData = [];
-            currentIndex = 0;
-            setUISection('upload');
-            updateSummaryUI(generateSummary([]));
-            updateProgressUI(0, 0);
-            if (exportResultsBtn) exportResultsBtn.disabled = true;
-            return;
-        }
-
-        validationData = data.validationData;
-        currentIndex = typeof data.currentIndex === 'number' ? data.currentIndex : 0;
-
-        // If we have data but haven't started validating, show the summary section
-        if (currentIndex === 0 && !hasResults(validationData)) {
-            setUISection('summary');
-            updateSummaryUI(generateSummary(validationData));
-            updateProgressUI(0, validationData.length);
-        } else if (validationData.length > 0) {
-            // If we're mid-validation or have results, show progress and summary
-            setUISection('progress');
-            updateProgressUI(currentIndex, validationData.length);
-            updateSummaryUI(generateSummary(validationData));
-            if (exportResultsBtn) {
-                exportResultsBtn.disabled = !hasResults(validationData);
-            }
-        } else {
-            // No data, show upload section
-            setUISection('upload');
-            updateSummaryUI(generateSummary([]));
-            updateProgressUI(0, 0);
-            if (exportResultsBtn) exportResultsBtn.disabled = true;
-        }
-    });
-
-    // Listen for changes to the validation data
-    chrome.storage.onChanged.addListener(function (changes) {
-        if (changes.validationData) {
-            validationData = changes.validationData.newValue;
-            updateSummaryUI(generateSummary(validationData));
-            if (exportResultsBtn) {
-                exportResultsBtn.disabled = !hasResults(validationData);
-            }
-        }
-
-        if (changes.currentIndex && validationData.length > 0) {
-            currentIndex = changes.currentIndex.newValue;
-            updateProgressUI(currentIndex, validationData.length);
-            if (exportResultsBtn) {
-                exportResultsBtn.disabled = !hasResults(validationData);
-            }
-        }
-    });
 
     // Handle dropped files
     function handleDrop(e) {
@@ -1089,8 +1342,27 @@ function initializePanel() {
                     comments: ''
                 }));
                 currentIndex = 0;
+                currentStartIndex = 0; // Reset filter start index on new upload
+                validationStopped = false;
+                processingNextUrl = false;
 
                 console.log('Processed CSV with', rows.length, 'records');
+
+                // Update the total index count
+                if (totalIndexCountEl) {
+                    totalIndexCountEl.textContent = rows.length - 1;
+                }
+
+                // Reset the start index input
+                if (startIndexInput) {
+                    startIndexInput.value = 0;
+                    startIndexInput.max = rows.length - 1;
+                }
+
+                // Hide resume button
+                if (resumeValidationBtn) {
+                    resumeValidationBtn.style.display = 'none';
+                }
 
                 // Always use chrome.runtime.sendMessage when in extension context
                 if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
@@ -1107,6 +1379,11 @@ function initializePanel() {
 
                             // Show success notification
                             showNotification(`Loaded ${rows.length} records successfully`, 'success');
+
+                            // Ensure export button is disabled until we have results
+                            if (exportResultsBtn) {
+                                exportResultsBtn.disabled = true;
+                            }
                         } else {
                             showNotification('Failed to upload CSV file', 'error');
                         }
@@ -1148,11 +1425,20 @@ function initializePanel() {
 
         progressBar.style.width = `${percentage}%`;
         progressText.textContent = `${safeCurrent}/${safeTotal} URLs processed (${percentage}%)`;
+
+        // Ensure the start index input reflects the current progress
+        if (startIndexInput) {
+            startIndexInput.value = safeCurrent;
+        }
     }
 
     // Update summary UI
     function updateSummaryUI(summary) {
         if (!summary) return;
+
+        // Add logging to diagnose issues
+        console.log('Updating summary UI with data:', JSON.stringify(summary));
+        console.log('Current filter index:', currentStartIndex);
 
         if (totalUrlsEl) totalUrlsEl.textContent = summary.totalUrls.toString();
         if (totalNodesEl) totalNodesEl.textContent = summary.totalNodes.toString();
@@ -1161,17 +1447,29 @@ function initializePanel() {
         if (falseNegativesEl) falseNegativesEl.textContent = summary.falseNegatives.toString();
         if (notValidEl) notValidEl.textContent = summary.notValid.toString();
         if (pendingEl) pendingEl.textContent = summary.pending.toString();
+
+        // Update export button based on results
+        if (exportResultsBtn) {
+            const activeData = getActiveValidationData();
+            exportResultsBtn.disabled = !hasResults(activeData);
+        }
     }
 
-    // Check if there are results to export
+    // Check if there are results to export - improved to be more lenient
     function hasResults(data) {
-        return Array.isArray(data) && data.some(function (row) {
+        if (!Array.isArray(data) || data.length === 0) return false;
+
+        // Consider any data with at least one status as having results
+        return data.some(function (row) {
             return row.status && row.status !== 'Pending';
         });
     }
 
     // Improved generateSummary function to handle edge cases
     function generateSummary(data) {
+        // Add debugging to identify potential issues
+        console.log(`Generating summary for ${data.length} items, currentStartIndex: ${currentStartIndex}`);
+
         const summary = {
             totalUrls: new Set(data.map(row => row.url)).size,
             totalNodes: data.length,
@@ -1205,6 +1503,9 @@ function initializePanel() {
             // Use verified count to ensure UI is consistent
             summary.totalNodes = verified;
         }
+
+        // Add debugging
+        console.log('Summary generated:', summary);
 
         return summary;
     }
@@ -1331,7 +1632,7 @@ function initializePanel() {
             .nv-notification {
                 position: fixed;
                 bottom: 20px;
-                right: 20px;
+                left: 20px; /* Position on left side */
                 padding: 10px 15px;
                 border-radius: 4px;
                 color: white;
@@ -1340,7 +1641,8 @@ function initializePanel() {
                 z-index: 9999;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.2);
                 animation: slideIn 0.3s forwards;
-                max-width: 80%;
+                width: auto;  /* Don't force a specific width */
+                max-width: 300px; /* Limit maximum width */
             }
             
             .nv-notification.info {
@@ -1365,7 +1667,7 @@ function initializePanel() {
             }
             
             @keyframes slideIn {
-                from { transform: translateX(100%); opacity: 0; }
+                from { transform: translateX(-100%); opacity: 0; }
                 to { transform: translateX(0); opacity: 1; }
             }
             
@@ -1422,6 +1724,14 @@ function initializePanel() {
 
         // Add periodic connection check
         setInterval(checkConnection, 30000);
+
+        // Initialize the resume button state
+        chrome.storage.local.get(['validationStopped'], function (data) {
+            validationStopped = !!data.validationStopped;
+            if (validationStopped && resumeValidationBtn && validationData.length > 0) {
+                resumeValidationBtn.style.display = 'inline-block';
+            }
+        });
     }
 
     // Start the panel
@@ -1430,7 +1740,7 @@ function initializePanel() {
     // Add this function to the initialization
     function initializeDataHandling() {
         // Check for any stale data that needs fixing
-        chrome.storage.local.get(['validationData'], function (data) {
+        chrome.storage.local.get(['validationData', 'filterStartIndex'], function (data) {
             if (Array.isArray(data.validationData) && data.validationData.length > 0) {
                 // Check for any inconsistent state and fix it
                 let needsFix = false;
@@ -1444,6 +1754,11 @@ function initializePanel() {
                 if (needsFix) {
                     console.log('Fixed data inconsistencies');
                     chrome.storage.local.set({ validationData: data.validationData });
+                }
+
+                // Make sure we have filterStartIndex saved
+                if (typeof data.filterStartIndex !== 'number') {
+                    chrome.storage.local.set({ filterStartIndex: 0 });
                 }
             }
         });

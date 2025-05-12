@@ -115,6 +115,56 @@
         input:checked+.slider:before {
             transform: translateX(14px);
         }
+
+        /* Added styles to make validation panel expand */
+        .panel-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .dashboard {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .validation-panel {
+            flex: 1;
+            display: flex;
+            overflow: auto;
+            margin-bottom: 0;
+        }
+
+        .validation-info,
+        .validation-controls {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .node-info {
+            flex: 1;
+            overflow: auto;
+        }
+
+        /* Warning Banner Styles */
+        .dock-warning-banner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: #ff9800;
+            color: #000;
+            text-align: center;
+            padding: 12px 20px;
+            z-index: 9999;
+            font-size: 14px;
+            font-weight: 500;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            border-bottom: 2px solid #f57c00;
+        }
     </style>
 </head>
 
@@ -208,6 +258,25 @@
                 </div>
             </div>
 
+            <!-- Start From Index Control (New) -->
+            <div class="start-controls">
+                <div class="start-from-index">
+                    <label for="startIndex">Start from index:</label>
+                    <input type="number" id="startIndex" min="0" value="0">
+                    <span class="start-index-info">of <span id="totalIndexCount">0</span></span>
+                </div>
+                <button id="resumeValidation" class="action-button secondary" style="display: none;">Resume
+                    Validation</button>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-container">
+                <div class="progress">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <div class="progress-text" id="progressText">0/0 URLs processed (0%)</div>
+            </div>
+
             <!-- Validation Panel -->
             <div class="validation-panel">
                 <div class="validation-info">
@@ -252,6 +321,7 @@
                         <button id="statusFalsePositive" class="status-btn warning">False Positive</button>
                         <button id="statusFalseNegative" class="status-btn danger">False Negative</button>
                         <button id="statusNotValid" class="status-btn secondary">Not Valid</button>
+                        <button id="statusSkip" class="status-btn skip">Skip</button>
                     </div>
 
                     <div class="comments-field">
@@ -263,14 +333,6 @@
                         <button id="nextUrl" class="action-button primary">Next URL</button>
                     </div>
                 </div>
-            </div>
-
-            <!-- Progress Bar -->
-            <div class="progress-container">
-                <div class="progress">
-                    <div class="progress-bar" id="progressBar"></div>
-                </div>
-                <div class="progress-text" id="progressText">0/0 URLs processed (0%)</div>
             </div>
         </div>
     </div>

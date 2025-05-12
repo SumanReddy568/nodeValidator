@@ -170,6 +170,7 @@ body {
     box-shadow: var(--shadow);
     padding: 12px;
     overflow: hidden;
+    min-height: 0;
 }
 
 /* Dashboard Header - Reduced margin & padding */
@@ -359,6 +360,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 /* Info items - More compact */
@@ -520,6 +524,59 @@ body {
 .status-btn.secondary.selected {
     background-color: var(--secondary);
     border-color: var(--secondary);
+}
+
+/* Added status button for Skip */
+.status-btn.skip {
+    border-left: 3px solid #9E9E9E;
+}
+
+.status-btn.skip.selected {
+    background-color: #9E9E9E;
+    border-color: #9E9E9E;
+}
+
+/* Start from index controls */
+.start-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding: 8px;
+    background-color: var(--gray-100);
+    border-radius: var(--radius);
+}
+
+.start-from-index {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.start-from-index label {
+    font-size: 14px;
+    color: var(--gray-700);
+    font-weight: 500;
+}
+
+.start-from-index input {
+    width: 60px;
+    padding: 4px 8px;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    text-align: center;
+}
+
+.start-from-index input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
+}
+
+.start-index-info {
+    font-size: 14px;
+    color: var(--gray-600);
 }
 
 /* Stop button */
@@ -1141,6 +1198,30 @@ body:has(.dock-warning) .panel-container {
 
 [data-theme="dark"] .validation-controls {
     border-left-color: var(--secondary);
+}
+
+[data-theme="dark"] .start-controls {
+    background-color: var(--dark-surface);
+    border: 1px solid var(--dark-border);
+}
+
+[data-theme="dark"] .start-from-index label {
+    color: var(--dark-text);
+}
+
+[data-theme="dark"] .start-from-index input {
+    background-color: var(--dark-bg);
+    border-color: var(--dark-border);
+    color: var(--dark-text);
+}
+
+[data-theme="dark"] .start-from-index input:focus {
+    border-color: var(--primary-light);
+    box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.1);
+}
+
+[data-theme="dark"] .start-index-info {
+    color: var(--dark-text-secondary);
 }
 
 /* Dark mode switch styles */

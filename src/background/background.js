@@ -31,7 +31,8 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             automatedMode = false;
             chrome.storage.local.set({
                 validationData,
-                currentIndex
+                currentIndex,
+                validationStopped: false // Reset stopped flag when uploading new data
             });
             sendResponse({ success: true });
             break;
@@ -39,16 +40,27 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
         case 'START_VALIDATION':
             validationActive = true;
             automatedMode = message.payload.automated || false; // Check if automated mode
+
+            // Allow starting from a specific index, now properly preserved in both manual and automated modes
+            if (typeof message.payload.startIndex === 'number') {
+                currentIndex = message.payload.startIndex;
+            }
+
+            // Also store the filter start index for proper UI updates and filtering
+            if (typeof message.payload.filterStartIndex === 'number') {
+                chrome.storage.local.set({ filterStartIndex: message.payload.filterStartIndex });
+            }
+
             const { url, targetNode } = message.payload;
 
-            console.log(`Starting validation in ${automatedMode ? 'automated' : 'manual'} mode`);
+            console.log(`Starting validation in ${automatedMode ? 'automated' : 'manual'} mode from index ${currentIndex}`);
 
             // Get the current active tab and use it for validation
             chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
                 if (tabs && tabs.length > 0) {
                     validationTabId = tabs[0].id;
 
-                    // Navigate to the first URL
+                    // Navigate to the URL at the current index
                     chrome.tabs.update(validationTabId, { url: url }, function (tab) {
                         // Set up one-time listener for this specific navigation
                         chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
@@ -75,6 +87,12 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
                         });
                     });
 
+                    // Update storage with new index - critical for resuming
+                    chrome.storage.local.set({
+                        currentIndex: currentIndex,
+                        validationStopped: false // Clear stopped flag when starting validation
+                    });
+
                     sendResponse({ success: true });
                 } else {
                     sendResponse({ success: false, error: 'No active tab found' });
@@ -85,6 +103,11 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
         case 'STOP_VALIDATION':
             validationActive = false;
             automatedMode = false;
+            // Record that validation was stopped so we can show resume button
+            chrome.storage.local.set({
+                validationStopped: true,
+                // Don't update the currentIndex here to ensure we can resume from the right spot
+            });
             sendResponse({ success: true });
             return true;
 
@@ -145,7 +168,10 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             if (currentIndex >= validationData.length) {
                 console.log("Validation complete - reached end of data");
                 validationActive = false;
-                chrome.storage.local.set({ currentIndex: validationData.length }, function () {
+                chrome.storage.local.set({
+                    currentIndex: validationData.length,
+                    validationStopped: false // Clear the stopped flag when complete
+                }, function () {
                     sendResponse({ success: false, message: 'Validation complete' });
                 });
                 return true;
@@ -158,7 +184,10 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             if (currentIndex >= validationData.length) {
                 console.log("Validation complete - reached end of data");
                 validationActive = false;
-                chrome.storage.local.set({ currentIndex: validationData.length }, function () {
+                chrome.storage.local.set({
+                    currentIndex: validationData.length,
+                    validationStopped: false // Clear the stopped flag when complete
+                }, function () {
                     sendResponse({ success: false, message: 'Validation complete' });
                 });
             } else {
@@ -202,6 +231,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             validationTabId = null;
             validationActive = false;
             automatedMode = false;
+            chrome.storage.local.set({ validationStopped: false }); // Clear the stopped flag
             sendResponse({ success: true });
             break;
 
@@ -228,7 +258,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     return true;
 });
 
-// Process results in automated mode
+// Process results in automated mode - ensure index is incremented properly
 function processAutomatedResult(response, index) {
     if (!automatedMode || !validationActive) return;
 
@@ -244,32 +274,38 @@ function processAutomatedResult(response, index) {
     validationData[index].status = status;
     validationData[index].comments = comments;
 
-    // Save the current state
-    chrome.storage.local.set({ validationData }, function () {
-        // Notify the panel of the update
-        chrome.runtime.sendMessage({
-            action: 'UPDATE_STATUS_RESULT',
-            success: true,
-            automated: true,
-            index: index,
-            status: status,
-            comments: comments,
-            isLast: (index === validationData.length - 1)
-        });
+    // Get the current filter start index for UI updates
+    chrome.storage.local.get(['filterStartIndex'], function (data) {
+        const filterStartIndex = typeof data.filterStartIndex === 'number' ? data.filterStartIndex : 0;
 
-        // Check if this is the last item
-        if (index === validationData.length - 1) {
-            console.log('Processed last item, will finish validation soon');
-            // Last item - give a moment for UI to update then finish
-            setTimeout(() => {
-                finishValidation();
-            }, 1000);
-        } else if (automatedMode && validationActive) {
-            // Continue to next URL after a delay
-            setTimeout(() => {
-                moveToNextUrl();
-            }, 2000);
-        }
+        // Save the current state
+        chrome.storage.local.set({ validationData }, function () {
+            // Notify the panel of the update
+            chrome.runtime.sendMessage({
+                action: 'UPDATE_STATUS_RESULT',
+                success: true,
+                automated: true,
+                index: index,
+                status: status,
+                comments: comments,
+                isLast: (index === validationData.length - 1),
+                filterStartIndex: filterStartIndex
+            });
+
+            // Check if this is the last item
+            if (index === validationData.length - 1) {
+                console.log('Processed last item, will finish validation soon');
+                // Last item - give a moment for UI to update then finish
+                setTimeout(() => {
+                    finishValidation();
+                }, 1000);
+            } else if (automatedMode && validationActive) {
+                // Continue to next URL after a delay
+                setTimeout(() => {
+                    moveToNextUrl();
+                }, 2000);
+            }
+        });
     });
 }
 
@@ -433,7 +469,8 @@ function finishValidation() {
     // Save the final data with all pending items resolved
     chrome.storage.local.set({
         validationData: validationData,
-        currentIndex: validationData.length // Set to end to mark as complete
+        currentIndex: validationData.length, // Set to end to mark as complete
+        validationStopped: false // Clear the stopped flag when complete
     }, function () {
         // Now that storage is updated, notify that we're done
         validationActive = false;
