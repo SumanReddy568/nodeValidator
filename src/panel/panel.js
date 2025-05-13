@@ -1201,9 +1201,22 @@ function initializePanel() {
                 const activeData = getActiveValidationData();
 
                 // Calculate the relative position in the filtered data
-                const relativeIndex = Math.max(0, currentIndex - currentStartIndex);
+                let relativeIndex = Math.max(0, currentIndex - currentStartIndex);
 
-                updateProgressUI(relativeIndex, activeData.length);
+                // --- Fix: On resume, if validationStopped is true, set relativeIndex to 0 so progress bar starts at the correct spot ---
+                if (validationStopped && resumeValidationBtn && resumeValidationBtn.style.display !== 'none') {
+                    // When resuming, progress bar should start at the correct spot in the filtered data
+                    chrome.storage.local.get(['currentIndex', 'filterStartIndex'], function (data) {
+                        let idx = typeof data.currentIndex === 'number' ? data.currentIndex : currentIndex;
+                        let filterIdx = typeof data.filterStartIndex === 'number' ? data.filterStartIndex : currentStartIndex;
+                        let relIdx = Math.max(0, idx - filterIdx);
+                        updateProgressUI(relIdx, activeData.length);
+                    });
+                } else {
+                    updateProgressUI(relativeIndex, activeData.length);
+                }
+                // --- End Fix ---
+
                 updateSummaryUI(generateSummary(activeData));
 
                 if (exportResultsBtn) {
