@@ -885,13 +885,13 @@ function initializePanel() {
         // Store the current index before navigation for reference
         const previousIndex = currentIndex;
 
-        // Only consider remaining items after currentStartIndex
+        // Calculate progress relative to the filtered view
         const activeData = getActiveValidationData();
         const localIndex = currentIndex - currentStartIndex;
-        const hasMoreUrls = localIndex < activeData.length - 1;
+        const hasMoreUrls = currentIndex < validationData.length - 1;
 
         if (!hasMoreUrls) {
-            // No more URLs to process in the filtered view
+            // No more URLs to process
             processingNextUrl = false;
             showNotification('Validation complete!', 'success', 5000);
 
@@ -902,7 +902,7 @@ function initializePanel() {
 
             if (nextUrlBtn) {
                 nextUrlBtn.disabled = true;
-                nextUrlBtn.textContent = 'Next URL'; // Reset text from "Loading..."
+                nextUrlBtn.textContent = 'Next URL';
             }
 
             if (stopValidationBtn) {
@@ -910,10 +910,11 @@ function initializePanel() {
                 stopValidationBtn.disabled = true;
             }
 
-            updateProgressUI(activeData.length, activeData.length);
+            // Update progress UI with the complete count
+            const totalProcessed = validationData.length - currentStartIndex;
+            updateProgressUI(totalProcessed, totalProcessed);
             updateSummaryUI(generateSummary(activeData));
 
-            // Enable export button if we have results
             if (exportResultsBtn) {
                 exportResultsBtn.disabled = !hasResults(activeData);
             }
@@ -974,6 +975,23 @@ function initializePanel() {
         if (nextUrlBtn) {
             nextUrlBtn.disabled = false;
             nextUrlBtn.textContent = 'Next URL';
+        }
+    }
+
+    // Update progress UI
+    function updateProgressUI(current, total) {
+        if (!progressBar || !progressText) return;
+
+        // Adjust current value to be relative to start index
+        const adjustedCurrent = Math.min(current, total);
+        const percentage = Math.round((adjustedCurrent / total) * 100);
+
+        progressBar.style.width = `${percentage}%`;
+        progressText.textContent = `${adjustedCurrent}/${total} URLs processed (${percentage}%)`;
+
+        // Update the displayed current index to include the start index offset
+        if (startIndexInput) {
+            startIndexInput.value = (currentStartIndex + adjustedCurrent).toString();
         }
     }
 
@@ -1412,24 +1430,6 @@ function initializePanel() {
 
                 showNotification(msg, 'error');
             });
-    }
-
-    // Update progress UI
-    function updateProgressUI(current, total) {
-        if (!progressBar || !progressText) return;
-
-        // Clamp current to total
-        let safeCurrent = Math.min(current, total);
-        let safeTotal = total || 1;
-        const percentage = Math.round((safeCurrent / safeTotal) * 100);
-
-        progressBar.style.width = `${percentage}%`;
-        progressText.textContent = `${safeCurrent}/${safeTotal} URLs processed (${percentage}%)`;
-
-        // Ensure the start index input reflects the current progress
-        if (startIndexInput) {
-            startIndexInput.value = safeCurrent;
-        }
     }
 
     // Update summary UI

@@ -274,12 +274,15 @@ function processAutomatedResult(response, index) {
     validationData[index].status = status;
     validationData[index].comments = comments;
 
-    // Get the current filter start index for UI updates
+    // Get the filter start index to ensure proper progress tracking
     chrome.storage.local.get(['filterStartIndex'], function (data) {
         const filterStartIndex = typeof data.filterStartIndex === 'number' ? data.filterStartIndex : 0;
 
         // Save the current state
-        chrome.storage.local.set({ validationData }, function () {
+        chrome.storage.local.set({
+            validationData,
+            currentIndex: index // Ensure we maintain the correct current index
+        }, function () {
             // Notify the panel of the update
             chrome.runtime.sendMessage({
                 action: 'UPDATE_STATUS_RESULT',
@@ -295,12 +298,11 @@ function processAutomatedResult(response, index) {
             // Check if this is the last item
             if (index === validationData.length - 1) {
                 console.log('Processed last item, will finish validation soon');
-                // Last item - give a moment for UI to update then finish
                 setTimeout(() => {
                     finishValidation();
                 }, 1000);
             } else if (automatedMode && validationActive) {
-                // Continue to next URL after a delay
+                // Continue to next URL after a delay, maintaining the current index
                 setTimeout(() => {
                     moveToNextUrl();
                 }, 2000);
@@ -309,30 +311,27 @@ function processAutomatedResult(response, index) {
     });
 }
 
-// Move to next URL (extracted to a function for automated mode)
+// Update moveToNextUrl to respect the starting index
 function moveToNextUrl() {
     currentIndex++;
 
     if (currentIndex < validationData.length) {
-        console.log(`Automated: Moving to next URL, index: ${currentIndex}`);
+        console.log(`Moving to next URL, index: ${currentIndex}`);
 
-        // Update storage first
-        chrome.storage.local.set({ currentIndex }, function () {
-            if (validationTabId !== null) {
-                openAndHighlight(currentIndex, validationTabId);
-            }
+        chrome.storage.local.get(['filterStartIndex'], function (data) {
+            const filterStartIndex = typeof data.filterStartIndex === 'number' ? data.filterStartIndex : 0;
+
+            chrome.storage.local.set({
+                currentIndex,
+                filterStartIndex
+            }, function () {
+                if (validationTabId !== null) {
+                    openAndHighlight(currentIndex, validationTabId);
+                }
+            });
         });
     } else {
-        console.log("Automated validation complete");
-        validationTabId = null;
-        validationActive = false;
-        automatedMode = false;
-
-        // Notify panel that validation is complete
-        chrome.runtime.sendMessage({
-            action: 'VALIDATION_COMPLETE',
-            message: 'Automated validation complete'
-        });
+        finishValidation();
     }
 }
 
