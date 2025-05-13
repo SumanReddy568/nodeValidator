@@ -1,3 +1,6 @@
+## [1.0.2] - 2025-05-13
+- progress bar hot fix
+
 ## [1.0.2] - 2025-05-12
 - New skip index changes
 
