@@ -166,6 +166,7 @@ function initializePanel() {
     const falsePositivesEl = document.getElementById('falsePositives');
     const falseNegativesEl = document.getElementById('falseNegatives');
     const notValidEl = document.getElementById('notValid');
+    const needsReviewEl = document.getElementById('needsReview'); // Added
     const pendingEl = document.getElementById('pending');
 
     const currentSelector = document.getElementById('currentSelector');
@@ -177,7 +178,8 @@ function initializePanel() {
         statusFalsePositive: 'False Positive',
         statusFalseNegative: 'False Negative',
         statusNotValid: 'Not Valid',
-        statusSkip: 'Skipped' // Add Skip status
+        statusNeedsReview: 'Needs Review', // Added
+        statusSkip: 'Skipped'
     };
 
     let selectedStatus = null;
@@ -1469,6 +1471,7 @@ function initializePanel() {
         if (falsePositivesEl) falsePositivesEl.textContent = summary.falsePositives.toString();
         if (falseNegativesEl) falseNegativesEl.textContent = summary.falseNegatives.toString();
         if (notValidEl) notValidEl.textContent = summary.notValid.toString();
+        if (needsReviewEl) needsReviewEl.textContent = summary.needsReview.toString(); // Added
         if (pendingEl) pendingEl.textContent = summary.pending.toString();
 
         // Update export button based on results
@@ -1500,6 +1503,7 @@ function initializePanel() {
             falsePositives: 0,
             falseNegatives: 0,
             notValid: 0,
+            needsReview: 0, // Added
             pending: 0
         };
 
@@ -1514,12 +1518,14 @@ function initializePanel() {
                 summary.falseNegatives++;
             } else if (row.status === 'Not Valid') {
                 summary.notValid++;
+            } else if (row.status === 'Needs Review') {
+                summary.needsReview++;
             }
         });
 
         // Double check totals - fixes edge cases where counts get out of sync
         const verified = summary.truePositives + summary.falsePositives +
-            summary.falseNegatives + summary.notValid + summary.pending;
+            summary.falseNegatives + summary.notValid + summary.needsReview + summary.pending;
 
         if (verified !== summary.totalNodes) {
             console.warn(`Summary count mismatch: ${verified} vs ${summary.totalNodes}`);

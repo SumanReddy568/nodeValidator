@@ -7,6 +7,7 @@ const NodeStatus = {
     FalseNegative: 'False Negative',
     NotFound: 'Not Found',
     NotValid: 'Not Valid',
+    NeedsReview: 'Needs Review', // Added
     Pending: 'Pending'
 };
 
@@ -344,6 +345,7 @@ function createStatusPanel() {
         <button id="false-negative" class="status-btn danger">False Negative</button>
         <button id="not-found" class="status-btn info">Not Found</button>
         <button id="not-valid" class="status-btn secondary">Not Valid</button>
+        <button id="needs-review" class="status-btn review">Needs Review</button>
       </div>
       <div class="notes-section">
         <label for="validation-notes">Notes:</label>
@@ -388,6 +390,10 @@ function createStatusPanel() {
 
     document.getElementById('not-valid').addEventListener('click', function () {
         updateStatus(NodeStatus.NotValid);
+    });
+
+    document.getElementById('needs-review').addEventListener('click', function () {
+        updateStatus(NodeStatus.NeedsReview);
     });
 
     document.getElementById('next-url').addEventListener('click', function () {
@@ -487,6 +493,11 @@ function applyInlineStyles(panel) {
 
     const secondaryBtn = document.getElementById('not-valid');
     secondaryBtn.style.backgroundColor = '#9E9E9E';
+
+    const reviewBtn = document.getElementById('needs-review');
+    if (reviewBtn) {
+        reviewBtn.style.backgroundColor = '#673ab7';
+    }
 
     // Notes section
     const notesSection = content.querySelector('.notes-section');

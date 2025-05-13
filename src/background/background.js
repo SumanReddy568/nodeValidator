@@ -10,6 +10,7 @@ const NodeStatus = {
     FalsePositive: 'False Positive',
     FalseNegative: 'False Negative',
     NotValid: 'Not Valid',
+    NeedsReview: 'Needs Review', // Added
     Pending: 'Pending'
 };
 
