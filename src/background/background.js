@@ -3,6 +3,7 @@ let currentIndex = 0;
 let validationTabId = null; // Track the tab being used for validation
 let validationActive = false; // Add a flag to track active validation
 let automatedMode = false; // Flag to track if we're in automated mode
+let lastUrl = null; // Track the last URL loaded in the validation tab
 
 const NodeStatus = {
     TruePositive: 'True Positive',
@@ -345,13 +346,89 @@ function openAndHighlight(index, tabId) {
     const currentRow = validationData[index];
     console.log(`Navigating to URL: ${currentRow.url} with selector: ${currentRow.targetNode}`);
 
+    // Check if the URL is the same as the last loaded URL
+    if (lastUrl === currentRow.url) {
+        // No need to reload, just send the highlight message
+        console.log("URL is the same as previous, skipping reload and just highlighting node");
+        chrome.tabs.sendMessage(tabId, {
+            action: 'HIGHLIGHT_NODE',
+            payload: {
+                targetNode: currentRow.targetNode,
+                index: index,
+                automated: automatedMode,
+                isLast: (index === validationData.length - 1)
+            }
+        }, function (response) {
+            if (chrome.runtime.lastError) {
+                console.warn("Error sending message to content script:", chrome.runtime.lastError);
+                chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    files: ['src/content/content.js']
+                }, function () {
+                    setTimeout(function () {
+                        chrome.tabs.sendMessage(tabId, {
+                            action: 'HIGHLIGHT_NODE',
+                            payload: {
+                                targetNode: currentRow.targetNode,
+                                index: index,
+                                automated: automatedMode,
+                                isLast: (index === validationData.length - 1)
+                            }
+                        }, function (retryResponse) {
+                            processResponse(retryResponse);
+                        });
+                    }, 500);
+                });
+            } else {
+                processResponse(response);
+            }
+
+            function processResponse(response) {
+                if (automatedMode) {
+                    if (response && response.found) {
+                        console.log("Element found, auto-marking as True Positive");
+                        validationData[index].status = 'True Positive';
+                        validationData[index].comments = 'Automatically marked as True Positive';
+                    } else {
+                        console.log("Element not found, auto-marking as Not Valid");
+                        validationData[index].status = 'Not Valid';
+                        validationData[index].comments = 'Automatically marked as Not Valid - element not found';
+                    }
+
+                    chrome.storage.local.set({ validationData }, function () {
+                        chrome.runtime.sendMessage({
+                            action: 'UPDATE_STATUS_RESULT',
+                            success: true,
+                            automated: true,
+                            index: index,
+                            status: validationData[index].status,
+                            comments: validationData[index].comments
+                        });
+
+                        if (automatedMode && validationActive) {
+                            setTimeout(function () {
+                                currentIndex++;
+                                chrome.storage.local.set({ currentIndex }, function () {
+                                    if (currentIndex < validationData.length) {
+                                        openAndHighlight(currentIndex, tabId);
+                                    } else {
+                                        finishValidation();
+                                    }
+                                });
+                            }, 2000);
+                        }
+                    });
+                }
+            }
+        });
+        return;
+    }
+
     // Set up listener before navigation
     const listener = function (updatedTabId, changeInfo, tab) {
         if (updatedTabId === tabId && changeInfo.status === 'complete') {
-            // Remove the listener since we only need it once
             chrome.tabs.onUpdated.removeListener(listener);
 
-            // Wait a bit longer to ensure page is fully loaded and DOM is ready
             setTimeout(function () {
                 console.log("Page loaded, sending highlight message");
                 chrome.tabs.sendMessage(tabId, {
@@ -363,15 +440,12 @@ function openAndHighlight(index, tabId) {
                         isLast: (index === validationData.length - 1)
                     }
                 }, function (response) {
-                    // Handle the case when there was no response from content script
                     if (chrome.runtime.lastError) {
                         console.warn("Error sending message to content script:", chrome.runtime.lastError);
-                        // Try injecting the content script and trying again
                         chrome.scripting.executeScript({
                             target: { tabId: tabId },
                             files: ['src/content/content.js']
                         }, function () {
-                            // Try sending the message again after script injection
                             setTimeout(function () {
                                 chrome.tabs.sendMessage(tabId, {
                                     action: 'HIGHLIGHT_NODE',
@@ -391,8 +465,6 @@ function openAndHighlight(index, tabId) {
                     }
 
                     function processResponse(response) {
-                        console.log("Response from content script:", response);
-                        // Update status if in automated mode
                         if (automatedMode) {
                             if (response && response.found) {
                                 console.log("Element found, auto-marking as True Positive");
@@ -404,9 +476,7 @@ function openAndHighlight(index, tabId) {
                                 validationData[index].comments = 'Automatically marked as Not Valid - element not found';
                             }
 
-                            // Save the current validation data immediately to ensure consistency
                             chrome.storage.local.set({ validationData }, function () {
-                                // Notify panel of status update
                                 chrome.runtime.sendMessage({
                                     action: 'UPDATE_STATUS_RESULT',
                                     success: true,
@@ -416,37 +486,32 @@ function openAndHighlight(index, tabId) {
                                     comments: validationData[index].comments
                                 });
 
-                                // In automated mode, move to next URL after delay
                                 if (automatedMode && validationActive) {
                                     setTimeout(function () {
-                                        // Increment index first
                                         currentIndex++;
-
-                                        // Update currentIndex in storage
                                         chrome.storage.local.set({ currentIndex }, function () {
-                                            // Check if we've reached the end
                                             if (currentIndex < validationData.length) {
                                                 openAndHighlight(currentIndex, tabId);
                                             } else {
-                                                // End of validation - ensure we mark as completed
                                                 finishValidation();
                                             }
                                         });
-                                    }, 2000); // 2 second delay between validations
+                                    }, 2000);
                                 }
                             });
                         }
                     }
                 });
-            }, 2000); // Longer timeout to ensure page is fully loaded
+            }, 2000);
         }
     };
 
-    // Add the listener
     chrome.tabs.onUpdated.addListener(listener);
 
-    // Navigate to the URL
-    chrome.tabs.update(tabId, { url: currentRow.url });
+    // Navigate to the URL and update lastUrl
+    chrome.tabs.update(tabId, { url: currentRow.url }, function () {
+        lastUrl = currentRow.url;
+    });
 }
 
 // Add a function to ensure proper validation completion

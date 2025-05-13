@@ -624,11 +624,19 @@ function initializePanel() {
             // Filter validation data to only include rows after the start index
             const filteredData = getActiveValidationData();
 
-            // Store the filter start index in storage for persistence
-            chrome.storage.local.set({ filterStartIndex: currentStartIndex });
-
-            // Update the summary UI with filtered data
-            updateSummaryUI(generateSummary(filteredData));
+            // Set initialFilterStartIndex only if not already set
+            chrome.storage.local.get(['initialFilterStartIndex'], function (data) {
+                if (typeof data.initialFilterStartIndex !== 'number') {
+                    chrome.storage.local.set({
+                        filterStartIndex: currentStartIndex,
+                        initialFilterStartIndex: currentStartIndex
+                    });
+                } else {
+                    chrome.storage.local.set({
+                        filterStartIndex: currentStartIndex
+                    });
+                }
+            });
 
             // Reset validation status only if not resuming
             if (!validationStopped) {
@@ -759,6 +767,11 @@ function initializePanel() {
 
                 // Reset validation stopped flag
                 validationStopped = false;
+
+                // Only update filterStartIndex, never initialFilterStartIndex
+                chrome.storage.local.set({
+                    filterStartIndex: currentIndex
+                });
 
                 // Call start validation button click handler
                 if (startValidationBtn) {
@@ -1078,6 +1091,9 @@ function initializePanel() {
                     updateSummaryUI(generateSummary([]));
                     updateProgressUI(0, 0);
 
+                    // Clear initialFilterStartIndex on new run
+                    chrome.storage.local.remove('initialFilterStartIndex');
+
                     // Return to upload view
                     setUISection('upload');
 
@@ -1102,7 +1118,7 @@ function initializePanel() {
     function initializeState() {
         if (initialized) return;
 
-        chrome.storage.local.get(['validationData', 'currentIndex', 'validationStopped', 'filterStartIndex', 'tempStatusSelection'], function (data) {
+        chrome.storage.local.get(['validationData', 'currentIndex', 'validationStopped', 'filterStartIndex', 'initialFilterStartIndex', 'tempStatusSelection'], function (data) {
             try {
                 // Always ensure we have a valid array
                 validationData = Array.isArray(data.validationData) ? data.validationData : [];
@@ -1280,30 +1296,34 @@ function initializePanel() {
     // Button event listeners
     if (exportResultsBtn) {
         exportResultsBtn.addEventListener('click', function () {
-            // Only export filtered data (activeData)
-            const activeData = getActiveValidationData();
-            if (!activeData || activeData.length === 0) {
-                alert('No results to export.');
-                return;
-            }
-
-            // Ensure comments are included from the UI state
-            const dataToExport = activeData.map((row, idx) => {
-                // If the current index is the one being edited, get the latest comments from the textarea
-                let comments = row.comments || '';
-                // idx is relative to activeData, so add currentStartIndex to compare with currentIndex
-                if ((idx + currentStartIndex) === currentIndex && statusNotes && statusNotes.value) {
-                    comments = statusNotes.value;
+            // Always fetch the latest validationData and initialFilterStartIndex from storage before exporting
+            chrome.storage.local.get(['validationData', 'initialFilterStartIndex'], function (data) {
+                let exportData = [];
+                let initialStart = typeof data.initialFilterStartIndex === 'number' ? data.initialFilterStartIndex : 0;
+                if (Array.isArray(data.validationData) && data.validationData.length > 0) {
+                    exportData = data.validationData.slice(initialStart).map(row => ({
+                        url: row.url,
+                        targetNode: row.targetNode,
+                        status: row.status,
+                        comments: row.comments
+                    }));
+                } else {
+                    // fallback to current in-memory data if storage is empty
+                    exportData = validationData.slice(initialStart).map(row => ({
+                        url: row.url,
+                        targetNode: row.targetNode,
+                        status: row.status,
+                        comments: row.comments
+                    }));
                 }
-                return {
-                    url: row.url,
-                    targetNode: row.targetNode,
-                    status: row.status,
-                    comments: comments
-                };
-            });
 
-            exportCsv(dataToExport);
+                if (!exportData || exportData.length === 0) {
+                    alert('No results to export.');
+                    return;
+                }
+
+                exportCsv(exportData);
+            });
         });
     }
 
@@ -1394,6 +1414,9 @@ function initializePanel() {
 
                             // Show summary section
                             setUISection('summary');
+
+                            // Clear initialFilterStartIndex on new upload
+                            chrome.storage.local.remove('initialFilterStartIndex');
 
                             // Show success notification
                             showNotification(`Loaded ${rows.length} records successfully`, 'success');
