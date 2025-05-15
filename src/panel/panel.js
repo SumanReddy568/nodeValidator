@@ -655,8 +655,9 @@ function initializePanel() {
                 resumeValidationBtn.style.display = 'none';
             }
 
-            // Reset progress bar and text
-            updateProgressUI(0, filteredData.length);
+            // Update progress bar and text with correct starting position
+            // This ensures we show the correct progress including previously validated items
+            updateProgressUI(currentIndex - currentStartIndex, filteredData.length);
 
             // Reset stop button
             if (stopValidationBtn) {
@@ -743,7 +744,7 @@ function initializePanel() {
             }
 
             // Use the stored currentIndex as the starting point for resumption
-            chrome.storage.local.get(['currentIndex'], function (data) {
+            chrome.storage.local.get(['currentIndex', 'filterStartIndex'], function (data) {
                 let startFromIndex = currentIndex;
 
                 // If we have a stored index, use that
@@ -756,12 +757,17 @@ function initializePanel() {
                     startFromIndex = validationData.length - 1;
                 }
 
-                // Update the startIndex input
-                if (startIndexInput) {
-                    startIndexInput.value = startFromIndex;
+                // Get the filter start index from storage if available
+                if (data && typeof data.filterStartIndex === 'number') {
+                    currentStartIndex = data.filterStartIndex;
                 }
 
-                // Prevent double incrementing by resetting the current index
+                // Update the startIndex input to show the current position
+                if (startIndexInput) {
+                    startIndexInput.value = startFromIndex.toString();
+                }
+
+                // Set current index to the start index for resumption
                 currentIndex = startFromIndex;
 
                 // Hide resume button
@@ -770,15 +776,88 @@ function initializePanel() {
                 // Reset validation stopped flag
                 validationStopped = false;
 
-                // Only update filterStartIndex, never initialFilterStartIndex
-                chrome.storage.local.set({
-                    filterStartIndex: currentIndex
-                });
+                // Important: Do NOT modify the progress bar here - it will be updated by startValidationBtn.click()
 
-                // Call start validation button click handler
-                if (startValidationBtn) {
-                    startValidationBtn.click();
-                }
+                // Make sure the filter start index is correctly saved for the background
+                chrome.storage.local.set({
+                    filterStartIndex: currentStartIndex,
+                    validationStopped: false
+                }, function() {
+                    // Get the active data with current filter
+                    const activeData = getActiveValidationData();
+                    
+                    // Calculate relative position for progress bar before clicking start
+                    // This is crucial to show correct progress when resuming
+                    const relativePosition = Math.max(0, currentIndex - currentStartIndex);
+                    
+                    // Update UI before starting validation
+                    updateSummaryUI(generateSummary(activeData));
+                    updateProgressUI(relativePosition, activeData.length);
+                    
+                    // Now call start validation
+                    if (startValidationBtn) {
+                        // We need to bypass the progress reset in the click handler
+                        // So we'll directly call the background script
+                        chrome.runtime.sendMessage({
+                            action: 'START_VALIDATION',
+                            payload: {
+                                url: validationData[currentIndex].url,
+                                targetNode: validationData[currentIndex].targetNode,
+                                automated: automatedMode,
+                                startIndex: currentIndex,
+                                resuming: true,
+                                filterStartIndex: currentStartIndex
+                            }
+                        }, function (response) {
+                            if (!response || !response.success) {
+                                showNotification(response && response.error ? response.error : 'Failed to resume validation', 'error');
+                                // Restore resume button if failed
+                                resumeValidationBtn.style.display = 'inline-block';
+                            } else {
+                                startValidationBtn.textContent = automatedMode ? 'Auto-Validating...' : 'Validating...';
+                                startValidationBtn.disabled = true;
+                                setUISection('summary');
+                                setupStatusButtons();
+                                updateCurrentValidation();
+                                
+                                // In manual mode, enable Next URL button. In automated mode, disable it
+                                if (nextUrlBtn) nextUrlBtn.disabled = automatedMode;
+
+                                // Reset stop button
+                                if (stopValidationBtn) {
+                                    stopValidationBtn.textContent = 'Stop';
+                                    stopValidationBtn.disabled = false;
+                                }
+
+                                // If automated, show a notification
+                                if (automatedMode) {
+                                    const notification = document.querySelector('.automation-notification');
+                                    if (!notification) {
+                                        const newNotification = document.createElement('div');
+                                        newNotification.className = 'automation-notification';
+                                        newNotification.id = 'automation-status';
+                                        newNotification.textContent = 'Automated validation in progress...';
+                                        document.querySelector('.validation-controls').appendChild(newNotification);
+                                        
+                                        // Scroll to automation status
+                                        newNotification.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                    }
+
+                                    // Disable status buttons in automated mode
+                                    document.querySelectorAll('.status-btn').forEach(btn => {
+                                        btn.disabled = true;
+                                    });
+
+                                    if (statusNotes) {
+                                        statusNotes.disabled = true;
+                                    }
+                                }
+                                
+                                showNotification(`Resuming validation from index ${currentIndex}`, 'success');
+                            }
+                        });
+                    }
+                });
             });
         });
     }
@@ -1136,7 +1215,7 @@ function initializePanel() {
 
                 // Make sure the start index input reflects the current filter start
                 if (startIndexInput && validationData.length > 0) {
-                    startIndexInput.value = currentStartIndex.toString();
+                    startIndexInput.value = currentIndex.toString(); // Set to current position instead of filter start
                     startIndexInput.max = validationData.length - 1;
                 }
 
@@ -1197,36 +1276,34 @@ function initializePanel() {
                 // Always show summary if we have data
                 setUISection('summary');
 
-                // Use filtered data for progress, summary, and export
-                const activeData = getActiveValidationData();
+                // Retrieve the latest filterStartIndex from storage to ensure consistency
+                chrome.storage.local.get(['filterStartIndex'], function (data) {
+                    // Update currentStartIndex if it's in storage
+                    if (typeof data.filterStartIndex === 'number') {
+                        currentStartIndex = data.filterStartIndex;
+                    }
 
-                // Calculate the relative position in the filtered data
-                let relativeIndex = Math.max(0, currentIndex - currentStartIndex);
+                    // Use filtered data for progress, summary, and export
+                    const activeData = getActiveValidationData();
 
-                // --- Fix: On resume, if validationStopped is true, set relativeIndex to 0 so progress bar starts at the correct spot ---
-                if (validationStopped && resumeValidationBtn && resumeValidationBtn.style.display !== 'none') {
-                    // When resuming, progress bar should start at the correct spot in the filtered data
-                    chrome.storage.local.get(['currentIndex', 'filterStartIndex'], function (data) {
-                        let idx = typeof data.currentIndex === 'number' ? data.currentIndex : currentIndex;
-                        let filterIdx = typeof data.filterStartIndex === 'number' ? data.filterStartIndex : currentStartIndex;
-                        let relIdx = Math.max(0, idx - filterIdx);
-                        updateProgressUI(relIdx, activeData.length);
-                    });
-                } else {
+                    // Calculate the relative position in the filtered data
+                    let relativeIndex = Math.max(0, currentIndex - currentStartIndex);
+
+                    // Update progress UI with the correct relative index based on filtered data
                     updateProgressUI(relativeIndex, activeData.length);
-                }
-                // --- End Fix ---
+                    
+                    // Update summary with the filtered data to show correct stats
+                    updateSummaryUI(generateSummary(activeData));
 
-                updateSummaryUI(generateSummary(activeData));
+                    if (exportResultsBtn) {
+                        exportResultsBtn.disabled = !hasResults(activeData);
+                    }
 
-                if (exportResultsBtn) {
-                    exportResultsBtn.disabled = !hasResults(activeData);
-                }
-
-                // Show resume button if validation was stopped mid-way
-                if (resumeValidationBtn && validationStopped) {
-                    resumeValidationBtn.style.display = 'inline-block';
-                }
+                    // Show resume button if validation was stopped mid-way
+                    if (resumeValidationBtn && validationStopped) {
+                        resumeValidationBtn.style.display = 'inline-block';
+                    }
+                });
             }
 
             // Update total index count - show the absolute total, not filtered
