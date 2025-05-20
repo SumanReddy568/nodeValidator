@@ -1,3 +1,6 @@
+## [1.0.4] - 2025-05-20
+- new node props
+
 ## [1.0.3] - 2025-05-15
 - Merge pull request #2 from SumanReddy568/resume_fix resume stats fix
 
