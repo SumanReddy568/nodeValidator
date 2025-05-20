@@ -25,6 +25,17 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     if (message.action === 'HIGHLIGHT_NODE') {
         const { targetNode, index, automated } = message.payload;
 
+        // Always send a response within a reasonable time to prevent hanging
+        const timeoutId = setTimeout(() => {
+            console.warn('Highlight operation timed out for selector:', targetNode);
+            sendResponse({
+                found: false,
+                error: 'Operation timed out',
+                index: index,
+                message: 'Element highlighting operation timed out'
+            });
+        }, 5000); // 5 second timeout
+
         try {
             // Clear any existing highlights
             clearHighlights();
@@ -35,19 +46,31 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             const elements = findElements(targetNode);
             const found = elements && elements.length > 0;
 
+            // Clear the timeout since we're responding now
+            clearTimeout(timeoutId);
+
             if (found) {
                 // Element found - highlight it
                 console.log(`Found ${elements.length} elements matching "${targetNode}"`);
-                highlightElements(elements);
-                scrollToElement(elements[0]);
+
+                try {
+                    highlightElements(elements);
+                    scrollToElement(elements[0]);
+                } catch (highlightError) {
+                    console.error('Error in highlight operation:', highlightError);
+                }
 
                 // Notify panel that element was found
-                chrome.runtime.sendMessage({
-                    action: 'ELEMENT_STATUS',
-                    found: true,
-                    count: elements.length,
-                    selector: targetNode
-                });
+                try {
+                    chrome.runtime.sendMessage({
+                        action: 'ELEMENT_STATUS',
+                        found: true,
+                        count: elements.length,
+                        selector: targetNode
+                    });
+                } catch (messageError) {
+                    console.error('Error sending element status message:', messageError);
+                }
 
                 // Send success response
                 sendResponse({
@@ -61,12 +84,16 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
                 console.warn(`Element not found: ${targetNode}`);
 
                 // Notify panel that element was not found
-                chrome.runtime.sendMessage({
-                    action: 'ELEMENT_STATUS',
-                    found: false,
-                    error: 'Element not found on page',
-                    selector: targetNode
-                });
+                try {
+                    chrome.runtime.sendMessage({
+                        action: 'ELEMENT_STATUS',
+                        found: false,
+                        error: 'Element not found on page',
+                        selector: targetNode
+                    });
+                } catch (messageError) {
+                    console.error('Error sending element status message:', messageError);
+                }
 
                 sendResponse({
                     found: false,
@@ -75,15 +102,22 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
                 });
             }
         } catch (error) {
+            // Clear the timeout since we're responding now
+            clearTimeout(timeoutId);
+
             console.error(`Error finding element: ${error}`);
 
             // Notify panel of the error
-            chrome.runtime.sendMessage({
-                action: 'ELEMENT_STATUS',
-                found: false,
-                error: error.message,
-                selector: targetNode
-            });
+            try {
+                chrome.runtime.sendMessage({
+                    action: 'ELEMENT_STATUS',
+                    found: false,
+                    error: error.message,
+                    selector: targetNode
+                });
+            } catch (messageError) {
+                console.error('Error sending error status message:', messageError);
+            }
 
             sendResponse({
                 found: false,
@@ -176,7 +210,6 @@ function findElements(selector) {
  * Highlight the specified elements
  */
 function highlightElements(elements) {
-    // Clear any existing highlights first
     clearHighlights();
 
     if (!elements || elements.length === 0) return;
@@ -185,10 +218,153 @@ function highlightElements(elements) {
 
     elements.forEach(element => {
         try {
-            // Save original styles
-            const originalOutline = element.style.outline;
-            const originalOutlineOffset = element.style.outlineOffset;
-            const originalPosition = element.style.position;
+            // Get the HTML snippet first before any modifications
+            const htmlSnippet = element.outerHTML || '-';
+
+            // Get parent HTML snippet (parent element's outerHTML)
+            let parentHtmlSnippet = '-';
+            if (element.parentElement) {
+                try {
+                    parentHtmlSnippet = element.parentElement.outerHTML || '-';
+                } catch (e) {
+                    console.warn('Error getting parent HTML:', e);
+                }
+            }
+
+            // Get child HTML snippet (all children combined)
+            let childHtmlSnippet = '-';
+            if (element.children && element.children.length > 0) {
+                try {
+                    // Ensure we're getting children as an array even if it's a HTMLCollection
+                    const childrenArray = Array.from(element.children);
+
+                    // Log for debugging
+                    console.log('Found child elements:', childrenArray.length);
+
+                    // Generate snippet only if children exist
+                    if (childrenArray.length > 0) {
+                        // Use a safer approach to build the child HTML
+                        const childSnippets = [];
+                        childrenArray.forEach(child => {
+                            try {
+                                if (child && child.outerHTML) {
+                                    childSnippets.push(child.outerHTML);
+                                }
+                            } catch (e) {
+                                console.warn('Error getting child HTML:', e);
+                            }
+                        });
+
+                        if (childSnippets.length > 0) {
+                            childHtmlSnippet = childSnippets.join('\n');
+                            // Double check we have content
+                            console.log('Child HTML snippet length:', childHtmlSnippet.length);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Error getting children:', e);
+                }
+            }
+
+            // Extract node attributes
+            let nodeAttributes = '-';
+            try {
+                if (element.attributes && element.attributes.length > 0) {
+                    const attributesArray = Array.from(element.attributes).map(attr =>
+                        `${attr.name}: "${attr.value}"`
+                    );
+                    nodeAttributes = attributesArray.join('\n');
+                }
+            } catch (e) {
+                console.warn('Error extracting attributes:', e);
+            }
+
+            // Extract accessibility information
+            let nodeAccessibility = '-';
+            try {
+                const a11yInfo = [];
+
+                // Role
+                if (element.getAttribute('role')) {
+                    a11yInfo.push(`Role: ${element.getAttribute('role')}`);
+                }
+
+                // ARIA attributes
+                Array.from(element.attributes)
+                    .filter(attr => attr.name.startsWith('aria-'))
+                    .forEach(attr => {
+                        a11yInfo.push(`${attr.name}: "${attr.value}"`);
+                    });
+
+                // Tab index
+                if (element.hasAttribute('tabindex')) {
+                    a11yInfo.push(`tabindex: ${element.getAttribute('tabindex')}`);
+                }
+
+                // Is focusable
+                const isFocusable = (element.tabIndex >= 0);
+                a11yInfo.push(`Focusable: ${isFocusable}`);
+
+                // Label info
+                if (element.hasAttribute('id')) {
+                    const labelFor = document.querySelector(`label[for="${element.id}"]`);
+                    if (labelFor) {
+                        a11yInfo.push(`Label: "${labelFor.textContent.trim()}"`);
+                    }
+                }
+
+                nodeAccessibility = a11yInfo.length > 0 ? a11yInfo.join('\n') : 'No accessibility attributes found';
+            } catch (e) {
+                console.warn('Error extracting accessibility info:', e);
+            }
+
+            // Extract important CSS properties
+            let nodeCssProperties = '-';
+            try {
+                const styles = window.getComputedStyle(element);
+                const cssProps = [
+                    'display', 'position', 'visibility', 'opacity',
+                    'width', 'height',
+                    'color', 'background-color',
+                    'font-size', 'font-weight'
+                ];
+
+                const cssInfo = cssProps.map(prop => `${prop}: ${styles.getPropertyValue(prop)}`);
+                nodeCssProperties = cssInfo.join('\n');
+            } catch (e) {
+                console.warn('Error extracting CSS properties:', e);
+            }
+
+            // Log the data being sent to ensure it's correct
+            console.log('Sending element details to panel:', {
+                htmlLength: htmlSnippet.length,
+                parentHtmlLength: parentHtmlSnippet.length,
+                childHtmlLength: childHtmlSnippet.length
+            });
+
+            // Send element details to panel in a safer way
+            try {
+                chrome.runtime.sendMessage({
+                    action: 'ELEMENT_DETAILS',
+                    payload: {
+                        html: htmlSnippet,
+                        parentHtml: parentHtmlSnippet,
+                        childHtml: childHtmlSnippet,
+                        attributes: nodeAttributes,
+                        accessibility: nodeAccessibility,
+                        cssProperties: nodeCssProperties
+                    }
+                });
+            } catch (e) {
+                console.error('Error sending element details message:', e);
+            }
+
+            // Rest of the highlighting logic
+            const originalStyles = {
+                outline: element.style.outline,
+                outlineOffset: element.style.outlineOffset,
+                position: element.style.position
+            };
 
             // Apply highlighting
             element.style.outline = '2px solid #f72585';
@@ -200,11 +376,7 @@ function highlightElements(elements) {
             // Add to tracked elements
             highlightedElements.push({
                 element: element,
-                originalStyles: {
-                    outline: originalOutline,
-                    outlineOffset: originalOutlineOffset,
-                    position: originalPosition
-                }
+                originalStyles: originalStyles
             });
 
             // Add pulsing effect with a badge showing the element was found

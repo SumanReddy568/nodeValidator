@@ -418,6 +418,100 @@ function initializePanel() {
         console.log('Panel received message:', message.action, message);
 
         try {
+            if (message.action === 'ELEMENT_DETAILS' && message.payload) {
+                const htmlSnippet = document.getElementById('htmlSnippet');
+                const parentHtmlSnippet = document.getElementById('parentHtmlSnippet');
+                const childHtmlSnippet = document.getElementById('childHtmlSnippet');
+                const nodeAttributes = document.getElementById('nodeAttributes');
+                const nodeAccessibility = document.getElementById('nodeAccessibility');
+                const nodeCssProperties = document.getElementById('nodeCssProperties');
+
+                // Debug the payload to ensure all data is received
+                console.log('Element details payload:', message.payload);
+
+                // Main HTML snippet
+                if (htmlSnippet && message.payload.html) {
+                    try {
+                        htmlSnippet.innerHTML = formatHtmlForDisplay(message.payload.html);
+                    } catch (e) {
+                        console.error('Error formatting main HTML:', e);
+                        htmlSnippet.textContent = String(message.payload.html).substring(0, 500) + '...';
+                    }
+                }
+
+                // Parent HTML snippet
+                if (parentHtmlSnippet && message.payload.parentHtml) {
+                    try {
+                        parentHtmlSnippet.innerHTML = formatHtmlForDisplay(message.payload.parentHtml);
+                    } catch (e) {
+                        console.error('Error formatting parent HTML:', e);
+                        parentHtmlSnippet.textContent = String(message.payload.parentHtml).substring(0, 500) + '...';
+                    }
+                } else if (parentHtmlSnippet) {
+                    parentHtmlSnippet.textContent = '-';
+                }
+
+                // Child HTML snippet
+                if (childHtmlSnippet) {
+                    try {
+                        if (message.payload.childHtml && message.payload.childHtml !== '-') {
+                            console.log('Updating child HTML snippet with:', message.payload.childHtml);
+                            childHtmlSnippet.innerHTML = formatHtmlForDisplay(message.payload.childHtml);
+                        } else {
+                            childHtmlSnippet.textContent = '-';
+                        }
+                    } catch (e) {
+                        console.error('Error formatting child HTML:', e, message.payload.childHtml);
+                        childHtmlSnippet.textContent = message.payload.childHtml ?
+                            String(message.payload.childHtml).substring(0, 500) + '...' : '-';
+                    }
+                }
+
+                // Node Attributes
+                if (nodeAttributes) {
+                    try {
+                        if (message.payload.attributes && message.payload.attributes !== '-') {
+                            nodeAttributes.textContent = message.payload.attributes;
+                        } else {
+                            nodeAttributes.textContent = '-';
+                        }
+                    } catch (e) {
+                        console.error('Error setting node attributes:', e);
+                        nodeAttributes.textContent = '-';
+                    }
+                }
+
+                // Node Accessibility
+                if (nodeAccessibility) {
+                    try {
+                        if (message.payload.accessibility && message.payload.accessibility !== '-') {
+                            nodeAccessibility.textContent = message.payload.accessibility;
+                        } else {
+                            nodeAccessibility.textContent = '-';
+                        }
+                    } catch (e) {
+                        console.error('Error setting node accessibility:', e);
+                        nodeAccessibility.textContent = '-';
+                    }
+                }
+
+                // CSS Properties
+                if (nodeCssProperties) {
+                    try {
+                        if (message.payload.cssProperties && message.payload.cssProperties !== '-') {
+                            nodeCssProperties.textContent = message.payload.cssProperties;
+                        } else {
+                            nodeCssProperties.textContent = '-';
+                        }
+                    } catch (e) {
+                        console.error('Error setting CSS properties:', e);
+                        nodeCssProperties.textContent = '-';
+                    }
+                }
+
+                // Make sure copy buttons are set up
+                setTimeout(setupCopyButtons, 0);
+            }
             // Handle various message types
             if (message.action === 'UPDATE_STATUS_RESULT') {
                 if (message.success) {
@@ -553,7 +647,7 @@ function initializePanel() {
                 showDockPositionWarning(message.position);
             }
         } catch (error) {
-            console.error('Error handling message:', error);
+            console.error('Error handling message:', error, error.stack);
         }
     });
 
@@ -782,18 +876,18 @@ function initializePanel() {
                 chrome.storage.local.set({
                     filterStartIndex: currentStartIndex,
                     validationStopped: false
-                }, function() {
+                }, function () {
                     // Get the active data with current filter
                     const activeData = getActiveValidationData();
-                    
+
                     // Calculate relative position for progress bar before clicking start
                     // This is crucial to show correct progress when resuming
                     const relativePosition = Math.max(0, currentIndex - currentStartIndex);
-                    
+
                     // Update UI before starting validation
                     updateSummaryUI(generateSummary(activeData));
                     updateProgressUI(relativePosition, activeData.length);
-                    
+
                     // Now call start validation
                     if (startValidationBtn) {
                         // We need to bypass the progress reset in the click handler
@@ -819,7 +913,7 @@ function initializePanel() {
                                 setUISection('summary');
                                 setupStatusButtons();
                                 updateCurrentValidation();
-                                
+
                                 // In manual mode, enable Next URL button. In automated mode, disable it
                                 if (nextUrlBtn) nextUrlBtn.disabled = automatedMode;
 
@@ -838,7 +932,7 @@ function initializePanel() {
                                         newNotification.id = 'automation-status';
                                         newNotification.textContent = 'Automated validation in progress...';
                                         document.querySelector('.validation-controls').appendChild(newNotification);
-                                        
+
                                         // Scroll to automation status
                                         newNotification.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                                     }
@@ -852,7 +946,7 @@ function initializePanel() {
                                         statusNotes.disabled = true;
                                     }
                                 }
-                                
+
                                 showNotification(`Resuming validation from index ${currentIndex}`, 'success');
                             }
                         });
@@ -1291,7 +1385,7 @@ function initializePanel() {
 
                     // Update progress UI with the correct relative index based on filtered data
                     updateProgressUI(relativeIndex, activeData.length);
-                    
+
                     // Update summary with the filtered data to show correct stats
                     updateSummaryUI(generateSummary(activeData));
 
@@ -1911,4 +2005,54 @@ function initializePanel() {
         }
     }
 }
+
+// Add this function for HTML formatting
+function formatHtmlForDisplay(html) {
+    if (!html || html === '-') return '-';
+
+    try {
+        // Ensure html is a string
+        const htmlString = String(html);
+
+        // Escape HTML special characters
+        const escaped = htmlString
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+
+        // Add syntax highlighting
+        const highlighted = escaped
+            .replace(/(&lt;[\w\d-]+)/g, '<span class="html-tag">$1</span>')
+            .replace(/(&lt;\/[\w\d-]+&gt;)/g, '<span class="html-tag">$1</span>')
+            .replace(/(\s[\w\d-]+)=["'][^"']*["']/g, '<span class="html-attr">$1</span>');
+
+        return highlighted;
+    } catch (e) {
+        console.error('Error formatting HTML for display:', e);
+        return String(html).substring(0, 1000) + '...';
+    }
+}
+
+// Add these styles
+const elementStyles = document.createElement('style');
+elementStyles.textContent = `
+    .html-snippet {
+        background: var(--surface);
+        padding: 12px;
+        border-radius: 4px;
+        font-family: 'Roboto Mono', monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid var(--border-color);
+        margin-top: 4px;
+    }
+    .html-tag { color: #e83e8c; }
+    .html-attr { color: #4CAF50; }
+`;
+document.head.appendChild(elementStyles);
 
