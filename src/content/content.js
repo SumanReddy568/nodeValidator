@@ -289,12 +289,40 @@ function highlightElements(elements) {
                     a11yInfo.push(`Role: ${element.getAttribute('role')}`);
                 }
 
-                // ARIA attributes
+                // All ARIA attributes on this element
                 Array.from(element.attributes)
                     .filter(attr => attr.name.startsWith('aria-'))
                     .forEach(attr => {
                         a11yInfo.push(`${attr.name}: "${attr.value}"`);
                     });
+
+                // All ARIA attributes on descendants (robust)
+                const allDescendants = element.querySelectorAll('*');
+                allDescendants.forEach(desc => {
+                    Array.from(desc.attributes)
+                        .filter(attr => attr.name.startsWith('aria-'))
+                        .forEach(attr => {
+                            a11yInfo.push(`[descendant ${desc.tagName.toLowerCase()}] ${attr.name}: "${attr.value}"`);
+                        });
+                });
+
+                // All ARIA attributes on closest 2 ancestors only
+                let ancestor = element.parentElement;
+                let ancestorLevel = 0;
+                while (ancestor && ancestorLevel < 2) {
+                    const ariaAttrs = Array.from(ancestor.attributes)
+                        .filter(attr => attr.name.startsWith('aria-'));
+                    if (ariaAttrs.length > 0) {
+                        const tag = ancestor.tagName.toLowerCase();
+                        const id = ancestor.id ? `#${ancestor.id}` : '';
+                        const cls = ancestor.className ? `.${ancestor.className.split(' ').join('.')}` : '';
+                        ariaAttrs.forEach(attr => {
+                            a11yInfo.push(`[ancestor${ancestorLevel === 0 ? '' : ' (grandparent)'} ${tag}${id}${cls}] ${attr.name}: "${attr.value}"`);
+                        });
+                    }
+                    ancestor = ancestor.parentElement;
+                    ancestorLevel++;
+                }
 
                 // Tab index
                 if (element.hasAttribute('tabindex')) {
@@ -313,7 +341,9 @@ function highlightElements(elements) {
                     }
                 }
 
-                nodeAccessibility = a11yInfo.length > 0 ? a11yInfo.join('\n') : 'No accessibility attributes found';
+                if (a11yInfo.length > 0) {
+                    nodeAccessibility = a11yInfo.join('\n');
+                }
             } catch (e) {
                 console.warn('Error extracting accessibility info:', e);
             }
