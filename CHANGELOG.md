@@ -1,3 +1,6 @@
+## [1.0.5] - 2025-07-30
+- Merge pull request #3 from SumanReddy568/fix_error_state new changes for a11y
+
 ## [1.0.4] - 2025-05-20
 - new node props
 
