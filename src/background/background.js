@@ -14,6 +14,10 @@ const NodeStatus = {
     Pending: 'Pending'
 };
 
+// Add these variables for keepalive functionality
+let keepaliveTimerId = null;
+const KEEPALIVE_TIMEOUT = 60000; // 60 seconds timeout
+
 chrome.runtime.onInstalled.addListener(function () {
     chrome.storage.local.set({
         validationData: [],
@@ -21,15 +25,29 @@ chrome.runtime.onInstalled.addListener(function () {
     });
 });
 
+// Implement the missing startKeepAlive function
+function startKeepAlive() {
+    // Clear any existing timer
+    if (keepaliveTimerId) {
+        clearTimeout(keepaliveTimerId);
+    }
+
+    // Set a new timer
+    keepaliveTimerId = setTimeout(() => {
+        console.log('Keepalive timeout - service worker may go inactive');
+        // Optional: Do any cleanup needed when service worker becomes inactive
+    }, KEEPALIVE_TIMEOUT);
+}
+
 chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     console.log('Background received message:', message.action);
+
+    // Reset the keepalive timer with each message
+    startKeepAlive();
 
     switch (message.action) {
         case 'UPLOAD_CSV':
             validationData = message.payload;
-            currentIndex = 0;
-            validationTabId = null;
-            validationActive = false;
             automatedMode = false;
             chrome.storage.local.set({
                 validationData,
@@ -254,6 +272,22 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             sendResponse({ success: true });
             break;
 
+        case 'KEEPALIVE_PING':
+            // Respond to keepalive ping to confirm background is active
+            sendResponse({ success: true, timestamp: Date.now() });
+            return true; // Keep message channel open
+
+        case 'RECONNECT':
+            // Handle reconnection attempt
+            console.log('Reconnection attempt received');
+            // Send back confirmation that we're alive
+            chrome.runtime.sendMessage({
+                action: 'RECONNECTED',
+                timestamp: Date.now()
+            });
+            sendResponse({ success: true });
+            return true;
+
         default:
             sendResponse({ success: false, error: 'Unknown action' });
     }
@@ -283,7 +317,7 @@ function processAutomatedResult(response, index) {
         // Save the current state
         chrome.storage.local.set({
             validationData,
-            currentIndex: index // Ensure we maintain the correct current index
+            currentIndex: index // Ensure we maintain the correct current index for export functionality
         }, function () {
             // Notify the panel of the update
             chrome.runtime.sendMessage({

@@ -15,9 +15,13 @@ window.addEventListener('error', function (event) {
     }
 });
 
+let processingNextUrl = false;
+let currentIndex = 0;
+
 // Theme management
 const themeToggle = document.getElementById('themeToggle');
 const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+const backUrlBtn = document.getElementById('backUrl');
 
 // Load saved theme preference or use system preference
 const loadTheme = () => {
@@ -185,8 +189,7 @@ function initializePanel() {
     let selectedStatus = null;
     let automatedMode = false; // Default to manual mode
     let validationStopped = false; // Track if validation was stopped
-    let currentStartIndex = 0; // Track the current start index
-    let processingNextUrl = false; // Add flag to prevent double-clicking Next URL button
+    let currentStartIndex = 0; // Track the current start index // Add flag to prevent double-clicking Next URL button
 
     // Helper to get filtered data based on currentStartIndex
     function getActiveValidationData() {
@@ -222,6 +225,55 @@ function initializePanel() {
                 };
             }
         });
+    }
+
+    if (backUrlBtn) {
+        backUrlBtn.onclick = function () {
+            if (processingNextUrl) return;
+            if (currentIndex <= 0) {
+                showNotification('Already at the first node.', 'warning');
+                return;
+            }
+            processingNextUrl = true;
+            backUrlBtn.disabled = true;
+            backUrlBtn.textContent = 'Loading...';
+
+            chrome.storage.local.get(['currentIndex'], function (data) {
+                let prevIndex = typeof data.currentIndex === 'number' ? data.currentIndex - 1 : currentIndex - 1;
+                if (prevIndex < 0) prevIndex = 0;
+
+                chrome.storage.local.set({ currentIndex: prevIndex }, function () {
+                    try {
+                        currentIndex = prevIndex;
+                        updateCurrentValidation();
+                        const activeData = getActiveValidationData();
+                        const localIndex = currentIndex - currentStartIndex;
+                        updateProgressUI(localIndex + 1, activeData.length);
+                        chrome.runtime.sendMessage({
+                            action: 'START_VALIDATION',
+                            payload: {
+                                url: validationData[currentIndex]?.url,
+                                targetNode: validationData[currentIndex]?.targetNode,
+                                automated: automatedMode,
+                                startIndex: currentIndex,
+                                resuming: true,
+                                filterStartIndex: currentStartIndex
+                            }
+                        }, function () {
+                            processingNextUrl = false;
+                            backUrlBtn.disabled = false;
+                            backUrlBtn.textContent = 'Back';
+                            showNotification('Moved to previous node.', 'info');
+                        });
+                    } catch (err) {
+                        processingNextUrl = false;
+                        backUrlBtn.disabled = false;
+                        backUrlBtn.textContent = 'Back';
+                        showNotification('Error moving to previous node.', 'error');
+                    }
+                });
+            });
+        };
     }
 
     // Preview status change by updating the stats immediately
@@ -1076,6 +1128,7 @@ function initializePanel() {
         // Calculate progress relative to the filtered view
         const activeData = getActiveValidationData();
         const localIndex = currentIndex - currentStartIndex;
+        updateProgressUI(localIndex + 1, activeData.length);
         const hasMoreUrls = currentIndex < validationData.length - 1;
 
         if (!hasMoreUrls) {
@@ -1179,7 +1232,7 @@ function initializePanel() {
 
         // Update the displayed current index to include the start index offset
         if (startIndexInput) {
-            startIndexInput.value = (currentStartIndex + adjustedCurrent).toString();
+            startIndexInput.value = currentIndex.toString();
         }
     }
 
@@ -1286,7 +1339,6 @@ function initializePanel() {
 
     // Global state with safer initialization
     let validationData = [];
-    let currentIndex = 0;
     let initialized = false;
 
     // Initialize or recover state
@@ -1482,33 +1534,42 @@ function initializePanel() {
     // Button event listeners
     if (exportResultsBtn) {
         exportResultsBtn.addEventListener('click', function () {
-            // Always fetch the latest validationData and initialFilterStartIndex from storage before exporting
-            chrome.storage.local.get(['validationData', 'initialFilterStartIndex'], function (data) {
+            // Always fetch the latest validationData and current index from storage before exporting
+            chrome.storage.local.get(['validationData', 'initialFilterStartIndex', 'currentIndex'], function (data) {
                 let exportData = [];
                 let initialStart = typeof data.initialFilterStartIndex === 'number' ? data.initialFilterStartIndex : 0;
+                let endIndex = typeof data.currentIndex === 'number' ? data.currentIndex : validationData.length;
+
+                // Ensure endIndex doesn't exceed the array length
+                endIndex = Math.min(endIndex, (data.validationData || []).length);
+
+                console.log(`Exporting data from index ${initialStart} to ${endIndex}`);
+
                 if (Array.isArray(data.validationData) && data.validationData.length > 0) {
-                    exportData = data.validationData.slice(initialStart).map(row => ({
+                    // Only export the range of data that has been processed
+                    exportData = data.validationData.slice(initialStart, endIndex + 1).map(row => ({
                         url: row.url,
                         targetNode: row.targetNode,
-                        status: row.status,
-                        comments: row.comments
+                        status: row.status || 'Pending',
+                        comments: row.comments || ''
                     }));
                 } else {
-                    // fallback to current in-memory data if storage is empty
-                    exportData = validationData.slice(initialStart).map(row => ({
+                    // Fallback to current in-memory data if storage is empty
+                    exportData = validationData.slice(initialStart, currentIndex + 1).map(row => ({
                         url: row.url,
                         targetNode: row.targetNode,
-                        status: row.status,
-                        comments: row.comments
+                        status: row.status || 'Pending',
+                        comments: row.comments || ''
                     }));
                 }
 
                 if (!exportData || exportData.length === 0) {
-                    alert('No results to export.');
+                    showNotification('No results to export.', 'warning');
                     return;
                 }
 
                 exportCsv(exportData);
+                showNotification(`Exported ${exportData.length} validated nodes.`, 'success');
             });
         });
     }

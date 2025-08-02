@@ -303,16 +303,77 @@ body {
     letter-spacing: 0.5px;
 }
 
-/* Validation Panel - Reduced gap & margin */
-.validation-panel {
-    display: grid;
-    grid-template-columns: 1fr 2fr;
-    gap: 12px;
-    flex: 1;
-    border-radius: var(--radius);
-    margin-bottom: 12px;
+/* Validation Panel - Adjust ratio for better positioning */
+.validation-controls {
+    max-width: 450px !important; /* Force wider width with !important */
+    min-width: 420px !important; /* Force consistent width with !important */
+    padding: 8px;
+    margin-left: -180px !important; /* Force negative margin with !important */
+    margin-right: 0;
+    position: relative;
+    z-index: 5; /* Increase z-index to ensure it stays on top */
+    /* Ensure controls overlay content when expanded */
+}
+.node-info .info-item:first-child {
+    margin-left: -12px;
 }
 
+/* Adjust validation panel to accommodate expanded controls */
+.validation-panel {
+    display: grid;
+    grid-template-columns: 3.5fr 1fr;
+    gap: 12px;
+    margin-right: 0px;
+    position: relative;
+    overflow: visible;
+    /* Make sure overflow is visible */
+    align-items: start;
+    /* Align columns to the top */
+    min-height: 0;
+    /* Allow grid to shrink/grow */
+    height: auto;
+    /* Allow grid to grow with content */
+}
+.current-node-info {
+    margin-left: -12px;
+}
+/* Node Info - Change to three column layout and ensure it takes precedence */
+.node-info {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 0.23fr)) !important;
+    grid-auto-rows: 1fr !important;
+    /* Make all rows equal height */
+    gap: 12px;
+    align-items: stretch;
+    /* Stretch items to fill row height */
+}
+
+#backUrl {
+    margin-right: 8px;
+}
+
+/* ...existing code... */
+.info-item {
+    margin: 0;
+    min-width: 0;
+    height: 100%;
+    /* Fill grid cell */
+    background: white;
+    padding: 10px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition);
+    display: flex;
+    flex-direction: column;
+    justify-content: stretch;
+}
+
+/* Remove full-width class behavior */
+.info-item.full-width {
+    grid-column: auto;
+}
+
+/* Validation Info - Adjusted for new layout */
 .validation-info {
     background-color: white;
     padding: 10px;
@@ -326,7 +387,7 @@ body {
 
 .validation-controls {
     background-color: white;
-    padding: 10px;
+    padding: 8px;
     border-radius: var(--radius);
     display: flex;
     flex-direction: column;
@@ -335,6 +396,9 @@ body {
     overflow-y: auto;
     box-shadow: var(--shadow-sm);
     border-left: 4px solid var(--secondary);
+    max-width: 180px;
+    min-width: 160px;
+    margin-left: auto; /* Push to right */
 }
 
 .validation-info h3,
@@ -362,18 +426,16 @@ body {
     background: var(--secondary);
 }
 
-.node-info {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
+/* Make specific items take full width */
+.info-item.full-width {
+    grid-column: 1 / -1;
 }
 
 /* Info items - More compact */
 .info-item {
-    margin-bottom: 10px;
+    margin: 0;
+    min-width: 0;
+    height: 100%;
     background: white;
     padding: 10px;
     border-radius: var(--radius);
@@ -397,6 +459,60 @@ body {
     color: var(--primary-dark);
     margin-top: 8px;
     border: 1px solid var(--gray-200);
+}
+
+.info-item .info-value {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    padding: 6px;
+    background: var(--gray-100);
+    border-radius: var(--radius-sm);
+    display: block;
+    word-break: break-all;
+    color: var(--primary-dark);
+    margin-top: 8px;
+    border: 1px solid var(--gray-200);
+}
+
+[data-theme="dark"] .info-item .info-value {
+    background-color: var(--dark-bg);
+    border-color: var(--dark-border);
+    color: var(--primary-light);
+}
+
+.info-item .info-value.placeholder {
+    color: var(--gray-400);
+    font-style: italic;
+}
+
+[data-theme="dark"] .info-item .info-value.placeholder {
+    color: var(--dark-text-secondary);
+}
+
+info-item span,
+.info-item code,
+.info-item pre {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 12px;
+    padding: 6px;
+    background: var(--gray-100);
+    border-radius: var(--radius-sm);
+    display: block;
+    word-break: break-all;
+    color: var(--primary-dark);
+    margin-top: 8px;
+    border: 1px solid var(--gray-200);
+    white-space: pre-wrap;
+    /* for pre blocks */
+    overflow-x: auto;
+}
+
+[data-theme="dark"] .info-item span,
+[data-theme="dark"] .info-item code,
+[data-theme="dark"] .info-item pre {
+    background-color: var(--dark-bg);
+    border-color: var(--dark-border);
+    color: var(--primary-light);
 }
 
 .info-header {
@@ -449,12 +565,23 @@ body {
     stroke-width: 1.5px;
 }
 
-/* Controls header with Material Design */
+/* Controls header with Material Design - Modified to include navigation */
 .controls-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 10px;
+}
+
+/* Add button group for controls header */
+.controls-header-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+/* Remove the separate navigation section at bottom */
+.navigation {
+    display: none;
 }
 
 /* Stats Controls Section */
@@ -475,36 +602,97 @@ body {
     border: 1px solid var(--dark-border);
 }
 
-/* Status Buttons - more compact and streamlined - improve click feel */
+/* Status Buttons - Two Row Layout */
 .status-buttons {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 10px;
+    flex-direction: column;
+    gap: 8px;
+    margin: 8px 0;
+}
+
+.status-buttons-primary {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    /* Increase from 4px for more spacing */
+}
+
+.status-buttons-secondary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    /* Increase from 4px for more spacing */
 }
 
 .status-btn {
-    flex: 1;
-    min-width: 70px;
-    padding: 6px 4px;
-    background-color: white;
+    padding: 8px 4px;
+    height: 36px;
+    font-size: 13px;
+    font-weight: 600;
     color: var(--gray-800);
     border: 1px solid var(--gray-300);
     border-radius: var(--radius-sm);
     cursor: pointer;
-    font-size: 11px;
-    font-weight: 500;
     transition: all 0.15s ease;
-    /* Faster transition for more snappy feel */
     text-align: center;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     box-shadow: none;
     position: relative;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-/* Add hover effect */
+/* Stats Controls Section */
+.stats-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background-color: var(--gray-100);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Dark mode support */
+[data-theme="dark"] .stats-controls {
+    background-color: var(--dark-surface);
+    border: 1px solid var(--dark-border);
+}
+
+/* Status Buttons - Compact with larger text */
+.status-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.status-btn {
+    flex: 1;
+    min-width: 60px;
+    padding: 10px 8px;
+    background-color: white;
+    color: var(--gray-800);
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: none;
+    position: relative;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Status button hover effects */
 .status-btn:hover {
     border-color: var(--primary);
     background-color: rgba(66, 133, 244, 0.05);
@@ -659,17 +847,51 @@ body {
 .start-controls {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 16px;
     margin-bottom: 12px;
     padding: 8px;
     background-color: var(--gray-100);
     border-radius: var(--radius);
+    flex-wrap: wrap;
+}
+
+.inline-progress {
+    flex: 1 1 0%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.inline-progress .progress {
+    flex: 1 1 0%;
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.inline-progress .progress-text {
+    font-size: 12px;
+    color: var(--gray-600);
+    margin-left: 8px;
+    min-width: 90px;
+    text-align: left;
+    flex-shrink: 0;
+}
+
+.start-index-progress-group {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1;
+    min-width: 0;
 }
 
 .start-from-index {
     display: flex;
     align-items: center;
     gap: 8px;
+    /* Do NOT add flex: 1 here */
 }
 
 .start-from-index label {
@@ -717,7 +939,7 @@ body {
 /* Comments Field - Compact */
 .comments-field {
     flex: 1;
-    margin-bottom: 8px;
+    margin: 8px 0;
     display: flex;
     flex-direction: column;
 }
@@ -732,8 +954,8 @@ body {
 
 .comments-field textarea {
     flex: 1;
-    min-height: 50px;
-    padding: 12px;
+    min-height: 60px;
+    padding: 8px;
     border: 1px solid var(--gray-300);
     border-radius: var(--radius);
     resize: none;
@@ -746,13 +968,6 @@ body {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 2px rgba(66, 133, 244, 0.2);
-}
-
-/* Navigation */
-.navigation {
-    margin-top: auto;
-    display: flex;
-    justify-content: flex-end;
 }
 
 /* Action Buttons - More compact */
@@ -806,16 +1021,16 @@ body {
 }
 
 .progress {
-    height: 4px;
+    height: 12px;
     background-color: var(--gray-200);
-    border-radius: 2px;
+    border-radius: 6px;
     overflow: hidden;
     margin-bottom: 8px;
 }
 
 .progress-bar {
     height: 100%;
-    background: linear-gradient(to right, var(--primary), var(--primary-light));
+    background: linear-gradient(to right, var(--warning), #ffe066);
     width: 0;
     transition: width 0.5s ease;
 }

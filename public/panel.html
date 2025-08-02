@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <title>Node Validator Panel</title>
     <link rel="stylesheet" href="styles/panel.css">
+    <link rel="stylesheet" href="styles/buttons.css">
     <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto+Mono&display=swap"
         rel="stylesheet">
     <script src="../lib/papaparse.min.js"></script>
@@ -264,21 +265,20 @@
 
             <!-- Start From Index Control (New) -->
             <div class="start-controls">
-                <div class="start-from-index">
-                    <label for="startIndex">Start from index:</label>
-                    <input type="number" id="startIndex" min="0" value="0">
-                    <span class="start-index-info">of <span id="totalIndexCount">0</span></span>
+                <div class="start-index-progress-group">
+                    <div class="start-from-index">
+                        <label for="startIndex">Start from index:</label>
+                        <input type="number" id="startIndex" min="0" value="0">
+                        <span class="start-index-info">of <span id="totalIndexCount">0</span></span>
+                    </div>
+                    <div class="inline-progress">
+                        <div class="progress">
+                            <div class="progress-bar" id="progressBar"></div>
+                        </div>
+                        <div class="progress-text" id="progressText"></div>
+                    </div>
                 </div>
-                <button id="resumeValidation" class="action-button secondary" style="display: none;">Resume
-                    Validation</button>
-            </div>
-
-            <!-- Progress Bar -->
-            <div class="progress-container">
-                <div class="progress">
-                    <div class="progress-bar" id="progressBar"></div>
-                </div>
-                <div class="progress-text" id="progressText">0/0 URLs processed (0%)</div>
+                <button id="resumeValidation" class="action-button secondary" style="display: none;">Resume Validation</button>
             </div>
 
             <!-- Validation Panel -->
@@ -314,6 +314,32 @@
                         </div>
                         <div class="info-item">
                             <div class="info-header">
+                                <label>Accessibility:</label>
+                                <button class="copy-btn" data-copy="nodeAccessibility" title="Copy Accessibility Info">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <pre id="nodeAccessibility" class="html-snippet">-</pre>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-header">
+                                <label>CSS Properties:</label>
+                                <button class="copy-btn" data-copy="nodeCssProperties" title="Copy CSS Properties">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                            <pre id="nodeCssProperties" class="html-snippet">-</pre>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-header">
                                 <label>HTML Snippet:</label>
                                 <button class="copy-btn" data-copy="htmlSnippet" title="Copy HTML">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
@@ -327,7 +353,7 @@
                         </div>
                         <div class="info-item">
                             <div class="info-header">
-                                <label>Parent HTML Snippet:</label>
+                                <label>Parent HTML:</label>
                                 <button class="copy-btn" data-copy="parentHtmlSnippet" title="Copy Parent HTML">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
                                         fill="none" stroke="currentColor">
@@ -338,10 +364,9 @@
                             </div>
                             <pre id="parentHtmlSnippet" class="html-snippet">-</pre>
                         </div>
-                        <!-- Uncomment and enhance the Child HTML Snippet section -->
                         <div class="info-item">
                             <div class="info-header">
-                                <label>Child HTML Snippet:</label>
+                                <label>Child HTML:</label>
                                 <button class="copy-btn" data-copy="childHtmlSnippet" title="Copy Child HTML">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
                                         fill="none" stroke="currentColor">
@@ -352,8 +377,6 @@
                             </div>
                             <pre id="childHtmlSnippet" class="html-snippet">-</pre>
                         </div>
-
-                        <!-- Add Node Attributes section -->
                         <div class="info-item">
                             <div class="info-header">
                                 <label>Node Attributes:</label>
@@ -367,68 +390,40 @@
                             </div>
                             <pre id="nodeAttributes" class="html-snippet">-</pre>
                         </div>
-
-                        <!-- Add Accessibility Info -->
-                        <div class="info-item">
-                            <div class="info-header">
-                                <label>Accessibility:</label>
-                                <button class="copy-btn" data-copy="nodeAccessibility" title="Copy Accessibility Info">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor">
-                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                    </svg>
-                                </button>
-                            </div>
-                            <pre id="nodeAccessibility" class="html-snippet">-</pre>
-                        </div>
-
-                        <!-- Add CSS Properties -->
-                        <div class="info-item">
-                            <div class="info-header">
-                                <label>CSS Properties:</label>
-                                <button class="copy-btn" data-copy="nodeCssProperties" title="Copy CSS Properties">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
-                                        fill="none" stroke="currentColor">
-                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                    </svg>
-                                </button>
-                            </div>
-                            <pre id="nodeCssProperties" class="html-snippet">-</pre>
-                        </div>
                     </div>
                 </div>
 
                 <div class="validation-controls">
                     <div class="controls-header">
                         <h3>Mark Status</h3>
-                        <button id="stopValidation" class="action-button danger-btn">Stop</button>
+                        <div class="controls-header-buttons">
+                            <button id="stopValidation" class="action-button danger-btn">Stop</button>
+                            <button id="backUrl" class="action-button secondary">Back</button>
+                            <button id="nextUrl" class="action-button primary">Next</button>
+                        </div>
                     </div>
                     <div class="status-buttons">
-                        <button id="statusTruePositive" class="status-btn success">True Positive</button>
-                        <button id="statusFalsePositive" class="status-btn warning">False Positive</button>
-                        <button id="statusFalseNegative" class="status-btn danger">False Negative</button>
-                        <button id="statusNotValid" class="status-btn secondary">Not Valid</button>
-                        <button id="statusNeedsReview" class="status-btn review">Needs Review</button>
-                        <button id="statusSkip" class="status-btn skip">Skip</button>
+                        <div class="status-buttons-primary">
+                            <button id="statusTruePositive" class="status-btn success">TP</button>
+                            <button id="statusFalsePositive" class="status-btn warning">FP</button>
+                            <button id="statusFalseNegative" class="status-btn danger">FN</button>
+                        </div>
+                        <div class="status-buttons-secondary">
+                            <button id="statusNotValid" class="status-btn secondary">INV</button>
+                            <button id="statusNeedsReview" class="status-btn review">REV</button>
+                            <button id="statusSkip" class="status-btn skip">SKIP</button>
+                        </div>
                     </div>
 
                     <div class="comments-field">
                         <label for="statusNotes">Comments:</label>
                         <textarea id="statusNotes" placeholder="Add optional comments here..."></textarea>
                     </div>
-
-                    <div class="navigation">
-                        <button id="nextUrl" class="action-button primary">Next URL</button>
-                    </div>
                 </div>
             </div>
         </div>
     </div>
-
     <script src="../src/utils/csvUtils.js"></script>
     <script src="../src/panel/panel.js"></script>
 </body>
-
 </html>
