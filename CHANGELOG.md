@@ -1,3 +1,6 @@
+## [1.0.6] - 2025-08-02
+- Merge pull request #4 from SumanReddy568/update_ui new ui changes
+
 ## [1.0.5] - 2025-07-30
 - Merge pull request #3 from SumanReddy568/fix_error_state new changes for a11y
 
