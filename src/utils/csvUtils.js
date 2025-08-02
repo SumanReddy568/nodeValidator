@@ -54,6 +54,7 @@ function parseCsv(file) {
 
 /**
  * Export the given data array as a CSV file and trigger download.
+ * Also saves the report in localStorage for access in the Saved Reports page.
  */
 function exportCsv(data) {
     if (!Array.isArray(data) || !data.length) {
@@ -63,9 +64,9 @@ function exportCsv(data) {
 
     // Ensure "Comments" column is included
     const csvData = data.map(row => ({
-        url: row.url,
-        targetNode: row.targetNode,
-        status: row.status,
+        url: row.url || '',
+        targetNode: row.targetNode || '',
+        status: row.status || 'Pending',
         comments: row.comments || '' // Add comments column
     }));
 
@@ -73,13 +74,40 @@ function exportCsv(data) {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
 
-    const link = document.createElement('a');
     const date = new Date().toISOString().split('T')[0];
+    const time = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
+    const filename = `node-validation-results-${date}-${time}.csv`;
+
+    // Calculate summary for report metadata
+    const summary = {
+        truePositives: csvData.filter(row => row.status === 'True Positive').length,
+        falsePositives: csvData.filter(row => row.status === 'False Positive').length,
+        falseNegatives: csvData.filter(row => row.status === 'False Negative').length,
+        notValid: csvData.filter(row => row.status === 'Not Valid').length,
+        needsReview: csvData.filter(row => row.status === 'Needs Review').length
+    };
+
+    // Save the report in local storage
+    const savedReports = JSON.parse(localStorage.getItem('savedReports') || '[]');
+    savedReports.push({
+        filename,
+        timestamp: Date.now(),
+        content: csv,
+        rowCount: csvData.length,
+        summary: summary
+    });
+    localStorage.setItem('savedReports', JSON.stringify(savedReports));
+
+    // Trigger download
+    const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `node-validation-results-${date}.csv`);
+    link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // Clean up the URL object
+    setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
 /**

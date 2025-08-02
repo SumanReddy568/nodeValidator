@@ -1,0 +1,23 @@
+.save-report-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.save-report-btn:hover {
+    background-color: var(--primary-dark);
+}
+
+.save-report-btn svg {
+    width: 16px;
+    height: 16px;
+}
