@@ -14,13 +14,9 @@ const NodeStatus = {
     Pending: 'Pending'
 };
 
-// Update these constants at the top of the file
-const KEEPALIVE_TIMEOUT = 25 * 60 * 1000; // 25 minutes
-const PING_INTERVAL = 60000; // 1 minute
-let keepAliveInterval = null;
-
 // Add these variables for keepalive functionality
 let keepaliveTimerId = null;
+const KEEPALIVE_TIMEOUT = 60000; // 60 seconds timeout
 
 chrome.runtime.onInstalled.addListener(function () {
     chrome.storage.local.set({
@@ -43,62 +39,6 @@ function startKeepAlive() {
     }, KEEPALIVE_TIMEOUT);
 }
 
-function refreshKeepAlive() {
-    if (keepAliveInterval) {
-        clearInterval(keepAliveInterval);
-    }
-
-    keepAliveInterval = setInterval(() => {
-        if (validationActive) {
-            // Use Promise race to implement timeout
-            Promise.race([
-                new Promise((resolve, reject) => {
-                    chrome.runtime.sendMessage({
-                        action: 'KEEP_ALIVE_CHECK',
-                        timestamp: Date.now()
-                    }, response => {
-                        if (chrome.runtime.lastError) {
-                            reject(chrome.runtime.lastError);
-                        } else {
-                            resolve(response);
-                        }
-                    });
-                }),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Keepalive timeout')), 5000)
-                )
-            ]).catch(error => {
-                console.warn('Keepalive check failed:', error);
-                handleConnectionLoss();
-            });
-        }
-    }, PING_INTERVAL);
-}
-
-function handleConnectionLoss() {
-    // Enhanced connection loss handling
-    validationActive = false; // Stop active validation
-    if (keepAliveInterval) {
-        clearInterval(keepAliveInterval);
-    }
-
-    chrome.storage.local.set({
-        validationStopped: true,
-        lastKnownState: {
-            currentIndex,
-            validationActive: true, // Store that it was active before loss
-            automatedMode,
-            timestamp: Date.now()
-        }
-    }, () => {
-        // Notify UI of connection loss
-        chrome.runtime.sendMessage({
-            action: 'CONNECTION_LOST',
-            timestamp: Date.now()
-        }).catch(() => { }); // Ignore errors if UI is not available
-    });
-}
-
 chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     console.log('Background received message:', message.action);
 
@@ -119,8 +59,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
 
         case 'START_VALIDATION':
             validationActive = true;
-            automatedMode = message.payload.automated || false;
-            refreshKeepAlive(); // Start keepalive checks
+            automatedMode = message.payload.automated || false; // Check if automated mode
 
             // Allow starting from a specific index, now properly preserved in both manual and automated modes
             if (typeof message.payload.startIndex === 'number') {
@@ -184,9 +123,6 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
         case 'STOP_VALIDATION':
             validationActive = false;
             automatedMode = false;
-            if (keepAliveInterval) {
-                clearInterval(keepAliveInterval);
-            }
             // Record that validation was stopped so we can show resume button
             chrome.storage.local.set({
                 validationStopped: true,
@@ -241,82 +177,58 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             return true; // Keep the message channel open for async response
 
         case 'NEXT_URL':
-            // First check if validation was stopped due to inactivity
-            chrome.storage.local.get(['validationStopped', 'lastKnownState'], function (data) {
-                if (data.validationStopped) {
-                    // Attempt to restore state
-                    if (data.lastKnownState) {
-                        currentIndex = data.lastKnownState.currentIndex;
-                        validationActive = true;
-                        automatedMode = data.lastKnownState.automatedMode;
-                        refreshKeepAlive(); // Restart keepalive
+            if (!validationActive) {
+                sendResponse({ success: false, error: 'Validation was stopped' });
+                return true;
+            }
 
-                        // Clear stopped state
-                        chrome.storage.local.set({
-                            validationStopped: false,
-                            lastKnownState: null
-                        }, function () {
-                            // Now proceed with normal next URL logic
-                            moveToNextUrl();
-                        });
-                    }
-                    sendResponse({ success: true, restored: true });
-                } else {
-                    // Normal next URL handling
-                    if (!validationActive) {
-                        sendResponse({ success: false, error: 'Validation was stopped' });
-                        return true;
-                    }
+            console.log(`NEXT_URL: Current index before increment: ${currentIndex}, Total items: ${validationData.length}`);
 
-                    console.log(`NEXT_URL: Current index before increment: ${currentIndex}, Total items: ${validationData.length}`);
+            // Check if the current index is valid
+            if (currentIndex >= validationData.length) {
+                console.log("Validation complete - reached end of data");
+                validationActive = false;
+                chrome.storage.local.set({
+                    currentIndex: validationData.length,
+                    validationStopped: false // Clear the stopped flag when complete
+                }, function () {
+                    sendResponse({ success: false, message: 'Validation complete' });
+                });
+                return true;
+            }
 
-                    // Check if the current index is valid
-                    if (currentIndex >= validationData.length) {
-                        console.log("Validation complete - reached end of data");
-                        validationActive = false;
-                        chrome.storage.local.set({
-                            currentIndex: validationData.length,
-                            validationStopped: false // Clear the stopped flag when complete
-                        }, function () {
-                            sendResponse({ success: false, message: 'Validation complete' });
-                        });
-                        return true;
-                    }
+            // Increment the index
+            currentIndex++;
 
-                    // Increment the index
-                    currentIndex++;
-
-                    // Check if we've reached the end after incrementing
-                    if (currentIndex >= validationData.length) {
-                        console.log("Validation complete - reached end of data");
-                        validationActive = false;
-                        chrome.storage.local.set({
-                            currentIndex: validationData.length,
-                            validationStopped: false // Clear the stopped flag when complete
-                        }, function () {
-                            sendResponse({ success: false, message: 'Validation complete' });
-                        });
+            // Check if we've reached the end after incrementing
+            if (currentIndex >= validationData.length) {
+                console.log("Validation complete - reached end of data");
+                validationActive = false;
+                chrome.storage.local.set({
+                    currentIndex: validationData.length,
+                    validationStopped: false // Clear the stopped flag when complete
+                }, function () {
+                    sendResponse({ success: false, message: 'Validation complete' });
+                });
+            } else {
+                console.log(`Moving to next URL, index: ${currentIndex}`);
+                chrome.storage.local.set({ currentIndex }, function () {
+                    if (validationTabId !== null) {
+                        openAndHighlight(currentIndex, validationTabId);
+                        sendResponse({ success: true });
                     } else {
-                        console.log(`Moving to next URL, index: ${currentIndex}`);
-                        chrome.storage.local.set({ currentIndex }, function () {
-                            if (validationTabId !== null) {
+                        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+                            if (tabs && tabs.length > 0) {
+                                validationTabId = tabs[0].id;
                                 openAndHighlight(currentIndex, validationTabId);
                                 sendResponse({ success: true });
                             } else {
-                                chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-                                    if (tabs && tabs.length > 0) {
-                                        validationTabId = tabs[0].id;
-                                        openAndHighlight(currentIndex, validationTabId);
-                                        sendResponse({ success: true });
-                                    } else {
-                                        sendResponse({ success: false, error: 'Validation tab not found' });
-                                    }
-                                });
+                                sendResponse({ success: false, error: 'Validation tab not found' });
                             }
                         });
                     }
-                }
-            });
+                });
+            }
             return true;
 
         case 'GET_CURRENT_DATA':

@@ -1207,42 +1207,10 @@ function initializePanel() {
         });
     }
 
-    // Add new error handler function after the moveToNextUrl function
+    // Add new helper function to handle validation errors
     function handleValidationError(response) {
-        if (response && response.error === 'Validation was stopped') {
-            showCustomConfirm(
-                'Validation session expired. Would you like to resume from where you left off?',
-                function () {
-                    // User clicked Yes - attempt to resume
-                    chrome.runtime.sendMessage({
-                        action: 'START_VALIDATION',
-                        payload: {
-                            url: validationData[currentIndex].url,
-                            targetNode: validationData[currentIndex].targetNode,
-                            automated: false,
-                            startIndex: currentIndex,
-                            resuming: true
-                        }
-                    }, function (response) {
-                        if (response && response.success) {
-                            showNotification('Successfully resumed validation', 'success');
-                            // Try the next URL action again
-                            if (nextUrlBtn) nextUrlBtn.click();
-                        } else {
-                            showNotification('Failed to resume validation. Please restart.', 'error');
-                        }
-                    });
-                },
-                function () {
-                    // User clicked No
-                    showNotification('Returning to upload screen', 'info');
-                    setUISection('upload');
-                }
-            );
-        } else {
-            const errorMsg = response && response.message ? response.message : 'Error moving to next URL';
-            showNotification(errorMsg, 'error', 5000);
-        }
+        const errorMsg = response && response.message ? response.message : 'Error moving to next URL';
+        showNotification(errorMsg, 'error', 5000);
 
         // Re-enable navigation
         if (nextUrlBtn) {
