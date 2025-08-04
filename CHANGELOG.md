@@ -1,3 +1,6 @@
+## [1.0.8] - 2025-08-04
+- Merge pull request #6 from SumanReddy568/revert-5-fix_timeout Revert fix connection timeout on resume
+
 ## [1.0.7] - 2025-08-04
 - Merge pull request #5 from SumanReddy568/fix_timeout fix connection timeout on resume
 
