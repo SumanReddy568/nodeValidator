@@ -1,3 +1,6 @@
+## [1.0.7] - 2025-08-04
+- Merge pull request #5 from SumanReddy568/fix_timeout fix connection timeout on resume
+
 ## [1.0.6] - 2025-08-02
 - Merge pull request #4 from SumanReddy568/update_ui new ui changes
 
