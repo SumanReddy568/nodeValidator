@@ -1014,6 +1014,7 @@ function initializePanel() {
             showCustomConfirm('Are you sure you want to stop validation? You can resume later.', function () {
                 // Set validation stopped flag
                 validationStopped = true;
+                processingNextUrl = false; // Reset processing flag to ensure Next URL button is re-enabled on resume
 
                 // Reset UI state to allow resuming
                 if (startValidationBtn) {

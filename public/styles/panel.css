@@ -160,6 +160,16 @@ body {
     font-size: 12px;
 }
 
+[data-theme="dark"] .format-info {
+    color: var(--dark-text-secondary);
+}
+
+[data-theme="dark"] .format-info code {
+    background-color: var(--dark-bg);
+    border: 1px solid var(--dark-border);
+    color: var(--primary-light);
+}
+
 /* Dashboard - Reduced padding */
 .dashboard {
     flex: 1;
@@ -303,78 +313,26 @@ body {
     letter-spacing: 0.5px;
 }
 
-/* Validation Panel - Adjust ratio for better positioning */
-.validation-controls {
-    max-width: 450px !important; /* Force wider width with !important */
-    min-width: 420px !important; /* Force consistent width with !important */
-    padding: 8px;
-    margin-left: -180px !important; /* Force negative margin with !important */
-    margin-right: 0;
-    position: relative;
-    z-index: 5; /* Increase z-index to ensure it stays on top */
-    /* Ensure controls overlay content when expanded */
-}
-.node-info .info-item:first-child {
-    margin-left: -12px;
-}
-
-/* Adjust validation panel to accommodate expanded controls */
+/*
+ * ============================================
+ * RE-ARCHITECTED VALIDATION PANEL LAYOUT
+ * ============================================
+ */
 .validation-panel {
-    display: grid;
-    grid-template-columns: 3.5fr 1fr;
-    gap: 12px;
-    margin-right: 0px;
-    position: relative;
-    overflow: visible;
-    /* Make sure overflow is visible */
-    align-items: start;
-    /* Align columns to the top */
-    min-height: 0;
-    /* Allow grid to shrink/grow */
-    height: auto;
-    /* Allow grid to grow with content */
-}
-.current-node-info {
-    margin-left: -12px;
-}
-/* Node Info - Change to three column layout and ensure it takes precedence */
-.node-info {
-    display: grid !important;
-    grid-template-columns: repeat(4, minmax(0, 0.23fr)) !important;
-    grid-auto-rows: 1fr !important;
-    /* Make all rows equal height */
-    gap: 12px;
-    align-items: stretch;
-    /* Stretch items to fill row height */
+    display: flex;
+    /* Use flexbox for a flexible main layout */
+    gap: 24px;
+    flex: 1;
+    /* Allow to grow and fill available space */
+    overflow: auto;
+    margin-bottom: 0;
 }
 
-#backUrl {
-    margin-right: 8px;
-}
-
-/* ...existing code... */
-.info-item {
-    margin: 0;
-    min-width: 0;
-    height: 100%;
-    /* Fill grid cell */
-    background: white;
-    padding: 10px;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-sm);
-    transition: var(--transition);
+.validation-info {
+    flex: 1;
+    /* Allow this to grow and shrink */
     display: flex;
     flex-direction: column;
-    justify-content: stretch;
-}
-
-/* Remove full-width class behavior */
-.info-item.full-width {
-    grid-column: auto;
-}
-
-/* Validation Info - Adjusted for new layout */
-.validation-info {
     background-color: white;
     padding: 10px;
     border-radius: var(--radius);
@@ -386,6 +344,9 @@ body {
 }
 
 .validation-controls {
+    flex-shrink: 0;
+    /* Set a reasonable fixed width for desktop */
+    width: 300px;
     background-color: white;
     padding: 8px;
     border-radius: var(--radius);
@@ -396,9 +357,49 @@ body {
     overflow-y: auto;
     box-shadow: var(--shadow-sm);
     border-left: 4px solid var(--secondary);
-    max-width: 180px;
-    min-width: 160px;
-    margin-left: auto; /* Push to right */
+}
+
+.flex-spacer {
+    flex-grow: 1;
+}
+
+.node-info {
+    display: grid;
+    /* Default to 2 columns for most desktop/laptop screens */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    align-items: stretch;
+}
+
+/* New rule for extra wide screens to add more columns */
+@media (min-width: 1600px) {
+    .node-info {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+/* This is the key responsive fix for the layout on smaller screens */
+@media (max-width: 992px) {
+    .validation-panel {
+        flex-direction: column;
+        /* Stack the panels vertically */
+    }
+
+    .validation-controls {
+        width: 100%;
+        /* Take full width on smaller screens */
+        /* Remove the fixed width set for larger screens */
+        max-width: none;
+    }
+
+    .node-info {
+        grid-template-columns: 1fr;
+        /* Switch to a single column */
+    }
+}
+
+#backUrl {
+    margin-right: 8px;
 }
 
 .validation-info h3,
@@ -423,6 +424,21 @@ body {
 }
 
 .validation-controls h3:after {
+    background: var(--secondary);
+}
+
+/* Update dark mode styles for headings in validation panels */
+[data-theme="dark"] .validation-info h3,
+[data-theme="dark"] .validation-controls h3 {
+    color: var(--dark-text);
+}
+
+[data-theme="dark"] .validation-info h3:after,
+[data-theme="dark"] .validation-controls h3:after {
+    background: var(--primary-light);
+}
+
+[data-theme="dark"] .validation-controls h3:after {
     background: var(--secondary);
 }
 
@@ -1388,114 +1404,6 @@ body:has(.dock-warning) .panel-container {
 [data-theme="dark"] .status-btn {
     background-color: var(--dark-surface);
     border-color: var(--dark-border);
-    color: var(--dark-text);
-}
-
-[data-theme="dark"] .progress {
-    background-color: var(--dark-border);
-}
-
-[data-theme="dark"] .progress-text {
-    color: var(--dark-text-secondary);
-}
-
-[data-theme="dark"] .upload-container {
-    background-color: var(--dark-surface);
-    border-color: var(--dark-border);
-}
-
-[data-theme="dark"] .upload-container:hover {
-    border-color: var(--primary-light);
-    background-color: rgba(66, 133, 244, 0.1);
-}
-
-[data-theme="dark"] .format-info {
-    color: var(--dark-text-secondary);
-}
-
-[data-theme="dark"] .format-info code {
-    background-color: var(--dark-bg);
-    color: var(--primary-light);
-    border-color: var(--dark-border);
-}
-
-[data-theme="dark"] .product-info .description {
-    color: var(--dark-text-secondary);
-}
-
-[data-theme="dark"] .version {
-    color: var(--dark-text-secondary);
-}
-
-[data-theme="dark"] .upload-icon {
-    filter: brightness(0.8) contrast(1.2);
-}
-
-[data-theme="dark"] .github-icon {
-    filter: invert(1) opacity(0.7);
-}
-
-[data-theme="dark"] .github-icon:hover {
-    filter: invert(1) opacity(1);
-}
-
-[data-theme="dark"] .version {
-    color: var(--dark-text-secondary);
-}
-
-[data-theme="dark"] #nv-modal>div {
-    background-color: var(--dark-surface);
-    color: var(--dark-text);
-}
-
-[data-theme="dark"] .danger-btn {
-    background-color: var(--dark-surface);
-    color: var(--danger);
-}
-
-[data-theme="dark"] .danger-btn:hover {
-    background-color: var(--danger);
-    color: var(--dark-text);
-}
-
-[data-theme="dark"] .validation-info h3,
-[data-theme="dark"] .validation-controls h3 {
-    color: var(--dark-text);
-}
-
-[data-theme="dark"] .validation-info h3:after {
-    background: var(--primary-light);
-}
-
-[data-theme="dark"] .validation-controls h3:after {
-    background: var(--secondary);
-}
-
-[data-theme="dark"] .info-item {
-    background-color: var(--dark-surface);
-    border: 1px solid var(--dark-border);
-}
-
-[data-theme="dark"] .info-item label {
-    color: var(--dark-text);
-}
-
-[data-theme="dark"] .info-header label {
-    color: var(--dark-text);
-}
-
-[data-theme="dark"] .copy-btn {
-    color: var(--dark-text-secondary);
-}
-
-[data-theme="dark"] .copy-btn:hover {
-    background-color: var(--dark-hover);
-    color: var(--primary-light);
-}
-
-[data-theme="dark"] .status-btn {
-    background-color: var(--dark-surface);
-    border: 1px solid var(--dark-border);
     color: var(--dark-text);
 }
 
