@@ -52,71 +52,80 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             chrome.storage.local.set({
                 validationData,
                 currentIndex,
-                validationStopped: false // Reset stopped flag when uploading new data
+                validationStopped: false, // Reset stopped flag when uploading new data
+                validationActive: false   // Ensure validation is marked as inactive on new upload
             });
             sendResponse({ success: true });
             break;
 
         case 'START_VALIDATION':
-            validationActive = true;
-            automatedMode = message.payload.automated || false; // Check if automated mode
+            chrome.storage.local.get(['validationData'], function (data) {
+                validationActive = true;
+                automatedMode = message.payload.automated || false;
 
-            // Allow starting from a specific index, now properly preserved in both manual and automated modes
-            if (typeof message.payload.startIndex === 'number') {
-                currentIndex = message.payload.startIndex;
-            }
-
-            // Also store the filter start index for proper UI updates and filtering
-            if (typeof message.payload.filterStartIndex === 'number') {
-                chrome.storage.local.set({ filterStartIndex: message.payload.filterStartIndex });
-            }
-
-            const { url, targetNode } = message.payload;
-
-            console.log(`Starting validation in ${automatedMode ? 'automated' : 'manual'} mode from index ${currentIndex}`);
-
-            // Get the current active tab and use it for validation
-            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-                if (tabs && tabs.length > 0) {
-                    validationTabId = tabs[0].id;
-
-                    // Navigate to the URL at the current index
-                    chrome.tabs.update(validationTabId, { url: url }, function (tab) {
-                        // Set up one-time listener for this specific navigation
-                        chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
-                            if (tabId === validationTabId && changeInfo.status === 'complete') {
-                                chrome.tabs.onUpdated.removeListener(listener);
-
-                                // Give the page a moment to fully render
-                                setTimeout(() => {
-                                    chrome.tabs.sendMessage(validationTabId, {
-                                        action: 'HIGHLIGHT_NODE',
-                                        payload: {
-                                            targetNode: targetNode,
-                                            index: currentIndex,
-                                            automated: automatedMode
-                                        }
-                                    }, response => {
-                                        // For automated mode, process the result immediately
-                                        if (automatedMode && response) {
-                                            processAutomatedResult(response, currentIndex);
-                                        }
-                                    });
-                                }, 1000);
-                            }
-                        });
-                    });
-
-                    // Update storage with new index - critical for resuming
-                    chrome.storage.local.set({
-                        currentIndex: currentIndex,
-                        validationStopped: false // Clear stopped flag when starting validation
-                    });
-
-                    sendResponse({ success: true });
-                } else {
-                    sendResponse({ success: false, error: 'No active tab found' });
+                // Use data from storage if available
+                if (data.validationData) {
+                    validationData = data.validationData;
                 }
+
+                // Allow starting from a specific index, now properly preserved in both manual and automated modes
+                if (typeof message.payload.startIndex === 'number') {
+                    currentIndex = message.payload.startIndex;
+                }
+
+                // Also store the filter start index for proper UI updates and filtering
+                if (typeof message.payload.filterStartIndex === 'number') {
+                    chrome.storage.local.set({ filterStartIndex: message.payload.filterStartIndex });
+                }
+
+                const { url, targetNode } = message.payload;
+
+                console.log(`Starting validation in ${automatedMode ? 'automated' : 'manual'} mode from index ${currentIndex}`);
+
+                // Get the current active tab and use it for validation
+                chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+                    if (tabs && tabs.length > 0) {
+                        validationTabId = tabs[0].id;
+
+                        // Navigate to the URL at the current index
+                        chrome.tabs.update(validationTabId, { url: url }, function (tab) {
+                            // Set up one-time listener for this specific navigation
+                            chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
+                                if (tabId === validationTabId && changeInfo.status === 'complete') {
+                                    chrome.tabs.onUpdated.removeListener(listener);
+
+                                    // Give the page a moment to fully render
+                                    setTimeout(() => {
+                                        chrome.tabs.sendMessage(validationTabId, {
+                                            action: 'HIGHLIGHT_NODE',
+                                            payload: {
+                                                targetNode: targetNode,
+                                                index: currentIndex,
+                                                automated: automatedMode
+                                            }
+                                        }, response => {
+                                            // For automated mode, process the result immediately
+                                            if (automatedMode && response) {
+                                                processAutomatedResult(response, currentIndex);
+                                            }
+                                        });
+                                    }, 1000);
+                                }
+                            });
+                        });
+
+                        // Update storage with new index - critical for resuming
+                        chrome.storage.local.set({
+                            currentIndex: currentIndex,
+                            validationStopped: false, // Clear stopped flag when starting validation
+                            validationActive: true    // Explicitly mark validation as active
+                        });
+
+                        sendResponse({ success: true });
+                    } else {
+                        sendResponse({ success: false, error: 'No active tab found' });
+                    }
+                });
             });
             return true;
 
@@ -126,6 +135,7 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             // Record that validation was stopped so we can show resume button
             chrome.storage.local.set({
                 validationStopped: true,
+                validationActive: false   // Explicitly mark validation as inactive
                 // Don't update the currentIndex here to ensure we can resume from the right spot
             });
             sendResponse({ success: true });
@@ -177,58 +187,76 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             return true; // Keep the message channel open for async response
 
         case 'NEXT_URL':
-            if (!validationActive) {
-                sendResponse({ success: false, error: 'Validation was stopped' });
-                return true;
-            }
+            // Get the current state from storage to ensure we have the latest data
+            chrome.storage.local.get(['validationData', 'currentIndex', 'validationActive'], function (data) {
+                // Check if validation is active from storage
+                if (!data.validationActive) {
+                    console.log('Validation is not active according to storage');
+                    sendResponse({ success: false, error: 'Validation was stopped' });
+                    return;
+                }
 
-            console.log(`NEXT_URL: Current index before increment: ${currentIndex}, Total items: ${validationData.length}`);
+                // Use data from storage if available
+                const storedValidationData = data.validationData || [];
+                let storedCurrentIndex = typeof data.currentIndex === 'number' ? data.currentIndex : currentIndex;
 
-            // Check if the current index is valid
-            if (currentIndex >= validationData.length) {
-                console.log("Validation complete - reached end of data");
-                validationActive = false;
-                chrome.storage.local.set({
-                    currentIndex: validationData.length,
-                    validationStopped: false // Clear the stopped flag when complete
-                }, function () {
-                    sendResponse({ success: false, message: 'Validation complete' });
-                });
-                return true;
-            }
+                console.log(`NEXT_URL: Current index before increment: ${storedCurrentIndex}, Total items: ${storedValidationData.length}`);
 
-            // Increment the index
-            currentIndex++;
+                // Check if the current index is valid
+                if (storedCurrentIndex >= storedValidationData.length) {
+                    console.log("Validation complete - reached end of data");
+                    validationActive = false;
+                    chrome.storage.local.set({
+                        currentIndex: storedValidationData.length,
+                        validationStopped: false, // Clear the stopped flag when complete
+                        validationActive: false   // Explicitly mark validation as inactive
+                    }, function () {
+                        sendResponse({ success: false, message: 'Validation complete' });
+                    });
+                    return;
+                }
 
-            // Check if we've reached the end after incrementing
-            if (currentIndex >= validationData.length) {
-                console.log("Validation complete - reached end of data");
-                validationActive = false;
-                chrome.storage.local.set({
-                    currentIndex: validationData.length,
-                    validationStopped: false // Clear the stopped flag when complete
-                }, function () {
-                    sendResponse({ success: false, message: 'Validation complete' });
-                });
-            } else {
-                console.log(`Moving to next URL, index: ${currentIndex}`);
-                chrome.storage.local.set({ currentIndex }, function () {
-                    if (validationTabId !== null) {
-                        openAndHighlight(currentIndex, validationTabId);
-                        sendResponse({ success: true });
-                    } else {
-                        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-                            if (tabs && tabs.length > 0) {
-                                validationTabId = tabs[0].id;
-                                openAndHighlight(currentIndex, validationTabId);
-                                sendResponse({ success: true });
-                            } else {
-                                sendResponse({ success: false, error: 'Validation tab not found' });
-                            }
-                        });
-                    }
-                });
-            }
+                // Increment the index
+                storedCurrentIndex++;
+                currentIndex = storedCurrentIndex; // Update in-memory index too
+
+                // Check if we've reached the end after incrementing
+                if (storedCurrentIndex >= storedValidationData.length) {
+                    console.log("Validation complete - reached end of data");
+                    validationActive = false;
+                    chrome.storage.local.set({
+                        currentIndex: storedValidationData.length,
+                        validationStopped: false, // Clear the stopped flag when complete
+                        validationActive: false   // Explicitly mark validation as inactive
+                    }, function () {
+                        sendResponse({ success: false, message: 'Validation complete' });
+                    });
+                } else {
+                    console.log(`Moving to next URL, index: ${storedCurrentIndex}`);
+                    // Update validationData from storage
+                    validationData = storedValidationData;
+
+                    chrome.storage.local.set({
+                        currentIndex: storedCurrentIndex,
+                        validationActive: true    // Ensure validation remains active
+                    }, function () {
+                        if (validationTabId !== null) {
+                            openAndHighlight(storedCurrentIndex, validationTabId);
+                            sendResponse({ success: true });
+                        } else {
+                            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+                                if (tabs && tabs.length > 0) {
+                                    validationTabId = tabs[0].id;
+                                    openAndHighlight(storedCurrentIndex, validationTabId);
+                                    sendResponse({ success: true });
+                                } else {
+                                    sendResponse({ success: false, error: 'Validation tab not found' });
+                                }
+                            });
+                        }
+                    });
+                }
+            });
             return true;
 
         case 'GET_CURRENT_DATA':
@@ -251,7 +279,12 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             validationTabId = null;
             validationActive = false;
             automatedMode = false;
-            chrome.storage.local.set({ validationStopped: false }); // Clear the stopped flag
+            chrome.storage.local.set({
+                validationStopped: false,
+                validationActive: false,   // Explicitly reset validationActive flag
+                validationData: [],
+                currentIndex: 0
+            });
             sendResponse({ success: true });
             break;
 
@@ -296,28 +329,37 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
 
 // Process results in automated mode - ensure index is incremented properly
 function processAutomatedResult(response, index) {
-    if (!automatedMode || !validationActive) return;
+    // Get the current state from storage to ensure we're using the latest data
+    chrome.storage.local.get(['validationData', 'validationActive', 'filterStartIndex'], function (data) {
+        if (!automatedMode || !data.validationActive) return;
 
-    // Update status based on element found or not
-    const status = response && response.found ? 'True Positive' : 'Not Valid';
-    const comments = response && response.found ?
-        'Automatically marked as True Positive' :
-        'Automatically marked as Not Valid - element not found';
+        const storedValidationData = data.validationData || [];
 
-    console.log(`Auto-marking item ${index} as ${status}`);
+        // Update status based on element found or not
+        const status = response && response.found ? 'True Positive' : 'Not Valid';
+        const comments = response && response.found ?
+            'Automatically marked as True Positive' :
+            'Automatically marked as Not Valid - element not found';
 
-    // Update the data
-    validationData[index].status = status;
-    validationData[index].comments = comments;
+        console.log(`Auto-marking item ${index} as ${status}`);
 
-    // Get the filter start index to ensure proper progress tracking
-    chrome.storage.local.get(['filterStartIndex'], function (data) {
+        // Update the data
+        if (storedValidationData[index]) {
+            storedValidationData[index].status = status;
+            storedValidationData[index].comments = comments;
+        }
+
+        // Update local variable to stay in sync with storage
+        validationData = storedValidationData;
+
+        // Get the filter start index to ensure proper progress tracking
         const filterStartIndex = typeof data.filterStartIndex === 'number' ? data.filterStartIndex : 0;
 
         // Save the current state
         chrome.storage.local.set({
-            validationData,
-            currentIndex: index // Ensure we maintain the correct current index for export functionality
+            validationData: storedValidationData,
+            currentIndex: index, // Ensure we maintain the correct current index for export functionality
+            validationActive: true
         }, function () {
             // Notify the panel of the update
             chrome.runtime.sendMessage({
@@ -327,17 +369,17 @@ function processAutomatedResult(response, index) {
                 index: index,
                 status: status,
                 comments: comments,
-                isLast: (index === validationData.length - 1),
+                isLast: (index === storedValidationData.length - 1),
                 filterStartIndex: filterStartIndex
             });
 
             // Check if this is the last item
-            if (index === validationData.length - 1) {
+            if (index === storedValidationData.length - 1) {
                 console.log('Processed last item, will finish validation soon');
                 setTimeout(() => {
                     finishValidation();
                 }, 1000);
-            } else if (automatedMode && validationActive) {
+            } else if (automatedMode && data.validationActive) {
                 // Continue to next URL after a delay, maintaining the current index
                 setTimeout(() => {
                     moveToNextUrl();
@@ -349,26 +391,34 @@ function processAutomatedResult(response, index) {
 
 // Update moveToNextUrl to respect the starting index
 function moveToNextUrl() {
-    currentIndex++;
+    // Always get the current state from storage before proceeding
+    chrome.storage.local.get(['validationData', 'currentIndex', 'validationActive', 'filterStartIndex'], function (data) {
+        if (!data.validationActive) return;
 
-    if (currentIndex < validationData.length) {
-        console.log(`Moving to next URL, index: ${currentIndex}`);
+        const storedValidationData = data.validationData || [];
+        let storedCurrentIndex = typeof data.currentIndex === 'number' ? data.currentIndex : currentIndex;
 
-        chrome.storage.local.get(['filterStartIndex'], function (data) {
+        storedCurrentIndex++;
+        currentIndex = storedCurrentIndex; // Keep in-memory index in sync
+
+        if (storedCurrentIndex < storedValidationData.length) {
+            console.log(`Moving to next URL, index: ${storedCurrentIndex}`);
+
             const filterStartIndex = typeof data.filterStartIndex === 'number' ? data.filterStartIndex : 0;
 
             chrome.storage.local.set({
-                currentIndex,
-                filterStartIndex
+                currentIndex: storedCurrentIndex,
+                filterStartIndex,
+                validationActive: true
             }, function () {
                 if (validationTabId !== null) {
-                    openAndHighlight(currentIndex, validationTabId);
+                    openAndHighlight(storedCurrentIndex, validationTabId);
                 }
             });
-        });
-    } else {
-        finishValidation();
-    }
+        } else {
+            finishValidation();
+        }
+    });
 }
 
 // Improve the openAndHighlight function with more robust navigation
@@ -551,37 +601,46 @@ function openAndHighlight(index, tabId) {
 
 // Add a function to ensure proper validation completion
 function finishValidation() {
-    // Make sure all data is processed before sending completion message
-    let pendingCount = 0;
+    // Get the current state from storage to ensure all data is processed
+    chrome.storage.local.get(['validationData'], function (data) {
+        const storedValidationData = data.validationData || [];
 
-    // First check if any items are still pending
-    for (let i = 0; i < validationData.length; i++) {
-        if (!validationData[i].status || validationData[i].status === 'Pending') {
-            pendingCount++;
-            validationData[i].status = 'Not Valid';
-            validationData[i].comments = 'Automatically marked as Not Valid - processing error';
+        // Make sure all data is processed before sending completion message
+        let pendingCount = 0;
+
+        // First check if any items are still pending
+        for (let i = 0; i < storedValidationData.length; i++) {
+            if (!storedValidationData[i].status || storedValidationData[i].status === 'Pending') {
+                pendingCount++;
+                storedValidationData[i].status = 'Not Valid';
+                storedValidationData[i].comments = 'Automatically marked as Not Valid - processing error';
+            }
         }
-    }
 
-    console.log(`Finishing validation. Found ${pendingCount} items still pending.`);
+        console.log(`Finishing validation. Found ${pendingCount} items still pending.`);
 
-    // Save the final data with all pending items resolved
-    chrome.storage.local.set({
-        validationData: validationData,
-        currentIndex: validationData.length, // Set to end to mark as complete
-        validationStopped: false // Clear the stopped flag when complete
-    }, function () {
-        // Now that storage is updated, notify that we're done
-        validationActive = false;
-        automatedMode = false;
+        // Update local variable to stay in sync
+        validationData = storedValidationData;
 
-        setTimeout(() => {
-            // Send completion message after a short delay to ensure storage updates first
-            chrome.runtime.sendMessage({
-                action: 'VALIDATION_COMPLETE',
-                message: 'Automated validation complete',
-                pendingFixed: pendingCount > 0
-            });
-        }, 500);
+        // Save the final data with all pending items resolved
+        chrome.storage.local.set({
+            validationData: storedValidationData,
+            currentIndex: storedValidationData.length, // Set to end to mark as complete
+            validationStopped: false, // Clear the stopped flag when complete
+            validationActive: false   // Explicitly mark validation as inactive
+        }, function () {
+            // Now that storage is updated, notify that we're done
+            validationActive = false;
+            automatedMode = false;
+
+            setTimeout(() => {
+                // Send completion message after a short delay to ensure storage updates first
+                chrome.runtime.sendMessage({
+                    action: 'VALIDATION_COMPLETE',
+                    message: 'Automated validation complete',
+                    pendingFixed: pendingCount > 0
+                });
+            }, 500);
+        });
     });
 }
