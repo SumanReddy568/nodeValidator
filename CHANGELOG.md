@@ -1,3 +1,6 @@
+## [1.1.0] - 2025-08-08
+- new fix for highlight and alt attributes
+
 ## [1.0.9] - 2025-08-05
 - Merge pull request #7 from SumanReddy568/fix_resume_issue fix for resume timeout
 
