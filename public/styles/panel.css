@@ -374,7 +374,7 @@ body {
 /* New rule for extra wide screens to add more columns */
 @media (min-width: 1600px) {
     .node-info {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 }
 

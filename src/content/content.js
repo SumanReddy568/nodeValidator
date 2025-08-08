@@ -7,7 +7,7 @@ const NodeStatus = {
     FalseNegative: 'False Negative',
     NotFound: 'Not Found',
     NotValid: 'Not Valid',
-    NeedsReview: 'Needs Review', // Added
+    NeedsReview: 'Needs Review',
     Pending: 'Pending'
 };
 
@@ -218,6 +218,9 @@ function highlightElements(elements) {
 
     elements.forEach(element => {
         try {
+            // First, make sure the element is visible
+            showHiddenElement(element);
+
             // Get the HTML snippet first before any modifications
             const htmlSnippet = element.outerHTML || '-';
 
@@ -235,31 +238,10 @@ function highlightElements(elements) {
             let childHtmlSnippet = '-';
             if (element.children && element.children.length > 0) {
                 try {
-                    // Ensure we're getting children as an array even if it's a HTMLCollection
                     const childrenArray = Array.from(element.children);
-
-                    // Log for debugging
-                    console.log('Found child elements:', childrenArray.length);
-
-                    // Generate snippet only if children exist
                     if (childrenArray.length > 0) {
-                        // Use a safer approach to build the child HTML
-                        const childSnippets = [];
-                        childrenArray.forEach(child => {
-                            try {
-                                if (child && child.outerHTML) {
-                                    childSnippets.push(child.outerHTML);
-                                }
-                            } catch (e) {
-                                console.warn('Error getting child HTML:', e);
-                            }
-                        });
-
-                        if (childSnippets.length > 0) {
-                            childHtmlSnippet = childSnippets.join('\n');
-                            // Double check we have content
-                            console.log('Child HTML snippet length:', childHtmlSnippet.length);
-                        }
+                        const childSnippets = childrenArray.map(child => child.outerHTML || '').filter(Boolean);
+                        childHtmlSnippet = childSnippets.join('\n');
                     }
                 } catch (e) {
                     console.warn('Error getting children:', e);
@@ -279,10 +261,17 @@ function highlightElements(elements) {
                 console.warn('Error extracting attributes:', e);
             }
 
-            // Extract accessibility information
+            // Extract accessibility information - UPDATED SECTION
             let nodeAccessibility = '-';
             try {
                 const a11yInfo = [];
+
+                // Check for all attributes that start with "alt"
+                Array.from(element.attributes)
+                    .filter(attr => attr.name.startsWith('alt'))
+                    .forEach(attr => {
+                        a11yInfo.push(`${attr.name}: "${attr.value}"`);
+                    });
 
                 // Role
                 if (element.getAttribute('role')) {
@@ -365,14 +354,12 @@ function highlightElements(elements) {
                 console.warn('Error extracting CSS properties:', e);
             }
 
-            // Log the data being sent to ensure it's correct
             console.log('Sending element details to panel:', {
                 htmlLength: htmlSnippet.length,
                 parentHtmlLength: parentHtmlSnippet.length,
                 childHtmlLength: childHtmlSnippet.length
             });
 
-            // Send element details to panel in a safer way
             try {
                 chrome.runtime.sendMessage({
                     action: 'ELEMENT_DETAILS',
@@ -389,43 +376,40 @@ function highlightElements(elements) {
                 console.error('Error sending element details message:', e);
             }
 
-            // Rest of the highlighting logic
             const originalStyles = {
                 outline: element.style.outline,
                 outlineOffset: element.style.outlineOffset,
                 position: element.style.position
             };
 
-            // Apply highlighting
-            element.style.outline = '2px solid #f72585';
-            element.style.outlineOffset = '2px';
+            element.style.setProperty('outline', '2px solid #f72585', 'important');
+            element.style.setProperty('outline-offset', '2px', 'important');
             if (getComputedStyle(element).position === 'static') {
-                element.style.position = 'relative';
+                element.style.setProperty('position', 'relative', 'important');
             }
 
-            // Add to tracked elements
             highlightedElements.push({
                 element: element,
                 originalStyles: originalStyles
             });
 
-            // Add pulsing effect with a badge showing the element was found
             const badge = document.createElement('div');
             badge.textContent = 'FOUND';
-            badge.style.position = 'absolute';
-            badge.style.top = '0';
-            badge.style.right = '0';
-            badge.style.backgroundColor = '#f72585';
-            badge.style.color = 'white';
-            badge.style.padding = '2px 6px';
-            badge.style.borderRadius = '3px';
-            badge.style.fontSize = '10px';
-            badge.style.fontWeight = 'bold';
-            badge.style.zIndex = '9999';
-            badge.style.animation = 'pulse 1.5s infinite';
-            badge.style.fontFamily = 'Arial, sans-serif';
+            badge.style.cssText = `
+                position: absolute;
+                top: 0;
+                right: 0;
+                background-color: #f72585 !important;
+                color: white !important;
+                padding: 2px 6px !important;
+                border-radius: 3px !important;
+                font-size: 10px !important;
+                font-weight: bold !important;
+                z-index: 9999 !important;
+                animation: pulse 1.5s infinite !important;
+                font-family: Arial, sans-serif !important;
+            `;
 
-            // Add CSS animation for pulse
             if (!document.getElementById('nv-animation-style')) {
                 const style = document.createElement('style');
                 style.id = 'nv-animation-style';
@@ -441,12 +425,10 @@ function highlightElements(elements) {
 
             element.appendChild(badge);
 
-            // Set timeout to remove highlight after some time
             const timeout = setTimeout(() => {
                 if (element.contains(badge)) {
                     element.removeChild(badge);
                 }
-                // Don't remove the highlight completely - just the badge
             }, HIGHLIGHT_DURATION);
 
             highlightTimeouts.push(timeout);
@@ -458,25 +440,64 @@ function highlightElements(elements) {
 }
 
 /**
+ * Temporarily overrides hidden styles to make an element visible.
+ * Stores original styles as data attributes for later restoration.
+ */
+function showHiddenElement(element) {
+    if (element.hasAttribute('data-nv-original-display')) return; // Already processed
+
+    const computedStyle = window.getComputedStyle(element);
+
+    if (computedStyle.display === 'none') {
+        element.setAttribute('data-nv-original-display', computedStyle.display);
+        element.style.setProperty('display', 'block', 'important');
+    }
+    if (computedStyle.visibility === 'hidden') {
+        element.setAttribute('data-nv-original-visibility', computedStyle.visibility);
+        element.style.setProperty('visibility', 'visible', 'important');
+    }
+    if (computedStyle.opacity === '0') {
+        element.setAttribute('data-nv-original-opacity', computedStyle.opacity);
+        element.style.setProperty('opacity', '1', 'important');
+    }
+}
+
+/**
+ * Restores the original styles of an element after it was made visible.
+ */
+function restoreHiddenElement(element) {
+    if (element.hasAttribute('data-nv-original-display')) {
+        element.style.display = element.getAttribute('data-nv-original-display');
+        element.removeAttribute('data-nv-original-display');
+    }
+    if (element.hasAttribute('data-nv-original-visibility')) {
+        element.style.visibility = element.getAttribute('data-nv-original-visibility');
+        element.removeAttribute('data-nv-original-visibility');
+    }
+    if (element.hasAttribute('data-nv-original-opacity')) {
+        element.style.opacity = element.getAttribute('data-nv-original-opacity');
+        element.removeAttribute('data-nv-original-opacity');
+    }
+}
+
+/**
  * Clear all highlights
  */
 function clearHighlights() {
-    // Clear all timeout handlers
     while (highlightTimeouts.length > 0) {
         clearTimeout(highlightTimeouts.pop());
     }
 
-    // Remove all highlights
     while (highlightedElements.length > 0) {
         const { element, originalStyles } = highlightedElements.pop();
         try {
             if (element) {
-                // Restore original styles
                 element.style.outline = originalStyles.outline;
                 element.style.outlineOffset = originalStyles.outlineOffset;
                 element.style.position = originalStyles.position;
 
-                // Remove any badge elements we added
+                restoreHiddenElement(element);
+
                 const badges = element.querySelectorAll('div');
                 badges.forEach(badge => {
                     if (badge.textContent === 'FOUND' && element.contains(badge)) {
@@ -497,7 +518,6 @@ function scrollToElement(element) {
     if (!element) return;
 
     try {
-        // Scroll element into view with smooth behavior
         element.scrollIntoView({
             behavior: 'smooth',
             block: 'center',
@@ -505,8 +525,6 @@ function scrollToElement(element) {
         });
     } catch (e) {
         console.error('Error scrolling to element:', e);
-
-        // Fallback method
         try {
             const rect = element.getBoundingClientRect();
             window.scrollTo({
@@ -520,20 +538,15 @@ function scrollToElement(element) {
     }
 }
 
-// Function to create the status panel
 function createStatusPanel() {
-    // Remove existing panel if present
     const existingPanel = document.getElementById('node-validator-panel');
     if (existingPanel) {
         existingPanel.remove();
     }
 
-    // Create new panel
     const panel = document.createElement('div');
     panel.id = 'node-validator-panel';
     panel.className = 'node-validator-panel';
-
-    // Create panel content
     panel.innerHTML = `
     <div class="panel-header">
       <h3>Node Validator</h3>
@@ -559,45 +572,32 @@ function createStatusPanel() {
     </div>
   `;
 
-    // Apply styles inline to ensure they work everywhere
     applyInlineStyles(panel);
-
-    // Append to body
     document.body.appendChild(panel);
-
-    // Make panel draggable
     makeDraggable(panel);
 
-    // Add event listeners
     document.getElementById('close-panel').addEventListener('click', function () {
         panel.remove();
         clearHighlights();
     });
-
     document.getElementById('true-positive').addEventListener('click', function () {
         updateStatus(NodeStatus.TruePositive);
     });
-
     document.getElementById('false-positive').addEventListener('click', function () {
         updateStatus(NodeStatus.FalsePositive);
     });
-
     document.getElementById('false-negative').addEventListener('click', function () {
         updateStatus(NodeStatus.FalseNegative);
     });
-
     document.getElementById('not-found').addEventListener('click', function () {
         updateStatus(NodeStatus.NotFound);
     });
-
     document.getElementById('not-valid').addEventListener('click', function () {
         updateStatus(NodeStatus.NotValid);
     });
-
     document.getElementById('needs-review').addEventListener('click', function () {
         updateStatus(NodeStatus.NeedsReview);
     });
-
     document.getElementById('next-url').addEventListener('click', function () {
         chrome.runtime.sendMessage({ action: 'NEXT_URL' }, function (response) {
             if (response && response.success) {
@@ -609,132 +609,129 @@ function createStatusPanel() {
     });
 }
 
-// Apply inline styles to the panel to ensure they work in all websites
 function applyInlineStyles(panel) {
-    // Panel styles
-    panel.style.position = 'fixed';
-    panel.style.top = '20px';
-    panel.style.right = '20px';
-    panel.style.width = '320px';
-    panel.style.backgroundColor = '#ffffff';
-    panel.style.borderRadius = '8px';
-    panel.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.15)';
-    panel.style.zIndex = '9999';
-    panel.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
-    panel.style.overflow = 'hidden';
-    panel.style.transition = 'all 0.3s ease';
+    panel.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        width: 320px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 9999;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    `;
 
-    // Panel header
     const header = panel.querySelector('.panel-header');
-    header.style.display = 'flex';
-    header.style.justifyContent = 'space-between';
-    header.style.alignItems = 'center';
-    header.style.background = 'linear-gradient(to right, #4776E6, #8E54E9)';
-    header.style.color = 'white';
-    header.style.padding = '10px 15px';
-    header.style.cursor = 'move';
-    header.style.userSelect = 'none';
+    header.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: linear-gradient(to right, #4776E6, #8E54E9);
+        color: white;
+        padding: 10px 15px;
+        cursor: move;
+        user-select: none;
+    `;
 
-    // Header title
     const h3 = header.querySelector('h3');
-    h3.style.margin = '0';
-    h3.style.fontSize = '16px';
-    h3.style.fontWeight = '600';
+    h3.style.cssText = `
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+    `;
 
-    // Close button
     const closeBtn = header.querySelector('.panel-close-btn');
-    closeBtn.style.background = 'none';
-    closeBtn.style.border = 'none';
-    closeBtn.style.color = 'white';
-    closeBtn.style.fontSize = '20px';
-    closeBtn.style.cursor = 'pointer';
-    closeBtn.style.padding = '0';
-    closeBtn.style.width = '24px';
-    closeBtn.style.height = '24px';
-    closeBtn.style.display = 'flex';
-    closeBtn.style.alignItems = 'center';
-    closeBtn.style.justifyContent = 'center';
-    closeBtn.style.borderRadius = '50%';
-    closeBtn.style.transition = 'background-color 0.2s';
+    closeBtn.style.cssText = `
+        background: none;
+        border: none;
+        color: white;
+        font-size: 20px;
+        cursor: pointer;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: background-color 0.2s;
+    `;
 
-    // Panel content
     const content = panel.querySelector('.panel-content');
-    content.style.padding = '15px';
+    content.style.cssText = `
+        padding: 15px;
+    `;
 
-    // Status buttons container
     const statusButtons = content.querySelector('.status-buttons');
-    statusButtons.style.display = 'grid';
-    statusButtons.style.gridTemplateColumns = '1fr 1fr';
-    statusButtons.style.gap = '8px';
-    statusButtons.style.marginBottom = '15px';
+    statusButtons.style.cssText = `
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-bottom: 15px;
+    `;
 
-    // Status buttons
     const buttons = statusButtons.querySelectorAll('.status-btn');
     buttons.forEach(function (btn) {
-        btn.style.padding = '8px 12px';
-        btn.style.border = 'none';
-        btn.style.borderRadius = '4px';
-        btn.style.cursor = 'pointer';
-        btn.style.fontWeight = '500';
-        btn.style.color = 'white';
-        btn.style.transition = 'all 0.2s';
+        btn.style.cssText = `
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            color: white;
+            transition: all 0.2s;
+        `;
     });
 
-    // Color specific buttons
-    const successBtn = document.getElementById('true-positive');
-    successBtn.style.backgroundColor = '#4CAF50';
+    document.getElementById('true-positive').style.backgroundColor = '#4CAF50';
+    document.getElementById('false-positive').style.backgroundColor = '#FF9800';
+    document.getElementById('false-negative').style.backgroundColor = '#F44336';
+    document.getElementById('not-found').style.backgroundColor = '#2196F3';
+    document.getElementById('not-valid').style.backgroundColor = '#9E9E9E';
+    document.getElementById('needs-review').style.backgroundColor = '#673ab7';
 
-    const warningBtn = document.getElementById('false-positive');
-    warningBtn.style.backgroundColor = '#FF9800';
-
-    const dangerBtn = document.getElementById('false-negative');
-    dangerBtn.style.backgroundColor = '#F44336';
-
-    const infoBtn = document.getElementById('not-found');
-    infoBtn.style.backgroundColor = '#2196F3';
-
-    const secondaryBtn = document.getElementById('not-valid');
-    secondaryBtn.style.backgroundColor = '#9E9E9E';
-
-    const reviewBtn = document.getElementById('needs-review');
-    if (reviewBtn) {
-        reviewBtn.style.backgroundColor = '#673ab7';
-    }
-
-    // Notes section
     const notesSection = content.querySelector('.notes-section');
     notesSection.style.marginBottom = '15px';
 
     const notesLabel = notesSection.querySelector('label');
-    notesLabel.style.display = 'block';
-    notesLabel.style.marginBottom = '5px';
-    notesLabel.style.fontWeight = '500';
+    notesLabel.style.cssText = `
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 500;
+    `;
 
     const textarea = notesSection.querySelector('textarea');
-    textarea.style.width = '100%';
-    textarea.style.height = '60px';
-    textarea.style.padding = '8px';
-    textarea.style.border = '1px solid #ddd';
-    textarea.style.borderRadius = '4px';
-    textarea.style.resize = 'vertical';
+    textarea.style.cssText = `
+        width: 100%;
+        height: 60px;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        resize: vertical;
+    `;
 
-    // Panel actions
     const actions = content.querySelector('.panel-actions');
-    actions.style.display = 'flex';
-    actions.style.justifyContent = 'flex-end';
+    actions.style.cssText = `
+        display: flex;
+        justify-content: flex-end;
+    `;
 
     const nextBtn = actions.querySelector('.primary-btn');
-    nextBtn.style.backgroundColor = '#4776E6';
-    nextBtn.style.color = 'white';
-    nextBtn.style.border = 'none';
-    nextBtn.style.padding = '8px 16px';
-    nextBtn.style.borderRadius = '4px';
-    nextBtn.style.cursor = 'pointer';
-    nextBtn.style.fontWeight = '500';
-    nextBtn.style.transition = 'all 0.2s';
+    nextBtn.style.cssText = `
+        background-color: #4776E6;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s;
+    `;
 }
 
-// Function to update status and navigate to next URL
 function updateStatus(status) {
     if (currentNodeIndex === null) return;
 
@@ -758,7 +755,6 @@ function updateStatus(status) {
                     btn.style.boxShadow = '';
                 });
 
-                // Find and highlight the selected button
                 const btnId = status.replace(' ', '-').toLowerCase();
                 const selectedBtn = document.getElementById(btnId);
                 if (selectedBtn) {
@@ -773,7 +769,6 @@ function updateStatus(status) {
     });
 }
 
-// Make an element draggable
 function makeDraggable(element) {
     const header = element.querySelector('.panel-header');
     if (!header) return;
@@ -783,32 +778,26 @@ function makeDraggable(element) {
 
     function dragMouseDown(e) {
         e.preventDefault();
-        // Get the mouse cursor position at startup
         pos3 = e.clientX;
         pos4 = e.clientY;
         document.onmouseup = closeDragElement;
-        // Call a function whenever the cursor moves
         document.onmousemove = elementDrag;
     }
 
     function elementDrag(e) {
         e.preventDefault();
-        // Calculate the new cursor position
         pos1 = pos3 - e.clientX;
         pos2 = pos4 - e.clientY;
         pos3 = e.clientX;
         pos4 = e.clientY;
-        // Set the element's new position
         element.style.top = (element.offsetTop - pos2) + "px";
         element.style.left = (element.offsetLeft - pos1) + "px";
     }
 
     function closeDragElement() {
-        // Stop moving when mouse button is released
         document.onmouseup = null;
         document.onmousemove = null;
     }
 }
 
-// Let the background script know the content script is ready
 chrome.runtime.sendMessage({ action: 'CONTENT_SCRIPT_READY' });
