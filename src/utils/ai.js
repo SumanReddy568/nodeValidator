@@ -421,4 +421,4 @@ CRITICAL: The entire response MUST be a single, valid JSON object, and nothing e
     window.aiAnalyzer = new AIAnalyzer();
 })();
 
-// Rest of the file would continue...
+

@@ -270,6 +270,7 @@
                     });
                 }
             }
-        }, 200); // Slightly longer delay to ensure DOM is ready
+        // Slightly longer delay to ensure DOM is ready
+        }, 200); 
     }
 })();
