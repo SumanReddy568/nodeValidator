@@ -86,6 +86,8 @@ zip -r -v "$ZIP_FILE" \
     src/content/content.js \
     src/panel/panel.js \
     src/utils/csvUtils.js \
+    src/utils/ai.js \
+    src/utils/aiUIHandler.js \
     src/devtools/devtools.js \
     public/images/icon16.png \
     public/images/icon48.png \
