@@ -297,32 +297,21 @@ CRITICAL: The entire response MUST be a single, valid JSON object, and nothing e
             try {
                 this.isAnalyzing = true;
                 const prompt = this.generatePrompt(elementData, this.currentRule);
-
                 console.log('Calling Gemini API...');
                 const rawResponse = await this.callGeminiAPI(prompt);
                 this.isAnalyzing = false;
-
                 console.log('Gemini raw response:', rawResponse);
-
                 let result;
-
-                // More robust parsing: find the JSON object and try to clean it
                 const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
                     let jsonString = jsonMatch[0];
                     console.log('Extracted JSON string:', jsonString);
 
                     try {
-                        // First, try direct parsing
                         result = JSON.parse(jsonString);
                         console.log('Successfully parsed JSON:', result);
                     } catch (e) {
                         console.warn('Direct JSON parse failed. Attempting to repair.', e);
-
-                        // Attempt to repair common issues like trailing commas or single/double quotes mismatch
-                        // This specific repair targets the case where a property value is not properly closed,
-                        // which is what the error message suggests.
-                        // This is still a weak repair, but it's a step up.
                         jsonString = jsonString.replace(/,(\s*[}\]])/g, '$1');
 
                         try {
