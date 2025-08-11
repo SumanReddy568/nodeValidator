@@ -592,7 +592,13 @@ info-item span,
 /* Add button group for controls header */
 .controls-header-buttons {
     display: flex;
-    gap: 8px;
+    gap: 4px;
+}
+
+.controls-header-buttons button {
+    padding: 4px 8px;
+    font-size: 12px;
+    min-width: auto;
 }
 
 /* Remove the separate navigation section at bottom */
@@ -1483,4 +1489,1352 @@ body:has(.dock-warning) .panel-container {
 
 [data-theme="dark"] .theme-switch-label {
     color: var(--dark-text-secondary);
+}
+
+/* Improved AI Analysis Panel Styles */
+.ai-analysis-panel {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dadce0;
+    margin-bottom: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-left: 3px solid #4285f4;
+}
+
+.ai-header-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+}
+
+.ai-result {
+    margin-bottom: 16px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.ai-result:last-child {
+    margin-bottom: 0;
+}
+
+.ai-result-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    background-color: var(--gray-100);
+    cursor: pointer;
+    gap: 10px;
+}
+
+[data-theme="dark"] .ai-result-header {
+    background-color: var(--dark-surface);
+}
+
+.ai-result-status {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.ai-result-status.pass {
+    background-color: rgba(15, 157, 88, 0.15);
+    color: #0f9d58;
+}
+
+.ai-result-status.fail {
+    background-color: rgba(219, 68, 55, 0.15);
+    color: #db4437;
+}
+
+.ai-result-summary,
+.ai-result-details,
+.ai-result-suggestions {
+    padding: 10px 12px;
+    border-top: 1px solid var(--gray-200);
+    line-height: 1.5;
+}
+
+[data-theme="dark"] .ai-result-summary,
+[data-theme="dark"] .ai-result-details,
+[data-theme="dark"] .ai-result-suggestions {
+    border-color: var(--dark-border);
+}
+
+.ai-result-content {
+    transition: max-height 0.3s ease-out;
+}
+
+.ai-result-content.collapsed {
+    display: none;
+}
+
+/* Make the AI section more prominent */
+.ai-rule-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.ai-rule-selector select {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-family);
+    font-size: 14px;
+}
+
+.ai-analyze-btn {
+    padding: 8px 12px;
+    background-color: var(--primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.ai-analyze-btn:hover:not(:disabled) {
+    background-color: var(--primary-dark);
+}
+
+.ai-analyze-btn:disabled {
+    background-color: var(--gray-400);
+    cursor: not-allowed;
+}
+
+[data-theme="dark"] .ai-analyze-btn:disabled {
+    background-color: var(--gray-700);
+}
+
+/* Add animation for AI spinner */
+.ai-spinner {
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top: 2px solid white;
+    width: 16px;
+    height: 16px;
+    animation: ai-spin 1s linear infinite;
+}
+
+@keyframes ai-spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Move AI to top of controls and make it more visible */
+.validation-controls {
+    display: flex;
+    flex-direction: column;
+}
+
+.validation-controls .ai-rule-selector {
+    order: 1;
+}
+
+.validation-controls .ai-analysis-panel {
+    order: 2;
+}
+
+.validation-controls .controls-header {
+    order: 3;
+}
+
+.validation-controls .status-buttons {
+    order: 4;
+}
+
+.validation-controls .comments-field {
+    order: 5;
+}
+
+/* Fix AI content visibility */
+.ai-analysis-panel.collapsed .ai-analysis-content {
+    display: none;
+}
+
+/* Improved collapsible section styles */
+.collapsible-section {
+    background-color: var(--gray-100);
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-300);
+    margin-bottom: 12px;
+    overflow: hidden;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background-color: var(--gray-200);
+    border-bottom: 1px solid var(--gray-300);
+    cursor: pointer;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.collapsible-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--gray-800);
+}
+
+.collapsible-title svg {
+    width: 18px;
+    height: 18px;
+    color: var(--primary);
+}
+
+.collapsible-content {
+    padding: 12px;
+    transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
+}
+
+.collapsible-section.collapsed {
+    margin-bottom: 8px;
+}
+
+.collapsible-section.collapsed .collapsible-content {
+    display: none;
+}
+
+.collapsible-section.collapsed .collapse-icon {
+    transform: rotate(180deg);
+}
+
+.collapse-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gray-600);
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.collapse-btn:hover {
+    background-color: var(--gray-300);
+    color: var(--primary);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Dark mode adjustments for collapsible sections */
+[data-theme="dark"] .collapsible-section {
+    background-color: var(--dark-surface);
+    border-color: var(--dark-border);
+}
+
+[data-theme="dark"] .collapsible-header {
+    background-color: var(--dark-bg);
+    border-color: var(--dark-border);
+}
+
+[data-theme="dark"] .collapsible-title {
+    color: var(--dark-text);
+}
+
+[data-theme="dark"] .collapsible-title svg {
+    color: var(--primary-light);
+}
+
+[data-theme="dark"] .collapse-btn {
+    color: var(--dark-text-secondary);
+}
+
+[data-theme="dark"] .collapse-btn:hover {
+    background-color: var(--dark-hover);
+    color: var(--primary-light);
+}
+
+/* Header actions in collapsible sections */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.controls-header-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.controls-header-buttons button {
+    padding: 4px 8px;
+    font-size: 12px;
+    min-width: auto;
+}
+
+/* AI rule selector in header */
+.ai-rule-selector-inline {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 300px;
+}
+
+.ai-rule-selector-inline select {
+    height: 26px;
+    max-width: 200px;
+    font-size: 12px;
+    padding: 0 8px;
+    border: 1px solid var(--gray-300);
+    border-radius: 4px;
+}
+
+.ai-rule-selector-inline .ai-analyze-btn {
+    height: 26px;
+    padding: 0 8px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+}
+
+/* Make headers more responsive */
+.collapsible-header {
+    flex-wrap: wrap;
+}
+
+/* Dark mode adjustments for new elements */
+[data-theme="dark"] .ai-rule-selector-inline select {
+    background-color: var(--dark-bg);
+    border-color: var(--dark-border);
+    color: var(--dark-text);
+}
+
+/* Optimize for small screens */
+@media (max-width: 600px) {
+    .header-actions {
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+    }
+    
+    .ai-rule-selector-inline {
+        max-width: 100%;
+    }
+    
+    .ai-rule-selector-inline select {
+        max-width: 120px;
+    }
+}
+.product-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.logo-version {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.product-icon {
+    width: 48px;
+    height: 48px;
+}
+
+.version {
+    font-size: 14px;
+    color: #666;
+    margin-left: 8px;
+}
+
+.github-link {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+}
+
+.github-icon {
+    width: 28px;
+    height: 28px;
+    filter: opacity(0.7);
+    transition: filter 0.2s ease;
+}
+
+.github-link:hover .github-icon {
+    filter: opacity(1);
+}
+
+#headerSection h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+.theme-switch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: absolute;
+    top: 16px;
+    left: 16px;
+}
+
+.theme-switch-label {
+    font-size: 14px;
+    color: #666;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 20px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.4s;
+    border-radius: 20px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.4s;
+    border-radius: 50%;
+}
+
+input:checked+.slider {
+    background-color: #2196F3;
+}
+
+input:checked+.slider:before {
+    transform: translateX(14px);
+}
+
+/* Added styles to make validation panel expand */
+.panel-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.dashboard {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.validation-panel {
+    flex: 1;
+    display: flex;
+    overflow: auto;
+    margin-bottom: 0;
+}
+
+.validation-info,
+.validation-controls {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.node-info {
+    flex: 1;
+    overflow: auto;
+}
+
+/* Warning Banner Styles */
+.dock-warning-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background-color: #ff9800;
+    color: #000;
+    text-align: center;
+    padding: 12px 20px;
+    z-index: 9999;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    border-bottom: 2px solid #f57c00;
+}
+
+/* Fixed AI Analysis Panel Styles */
+.ai-analysis-panel {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dadce0;
+    margin-bottom: 12px;
+    overflow: hidden;
+    max-height: none;
+    position: relative;
+}
+
+.ai-analysis-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background-color: #e8eaed;
+    border-bottom: 1px solid #dadce0;
+    cursor: pointer;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.ai-header-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.ai-header-title svg {
+    width: 18px;
+    height: 18px;
+}
+
+.ai-analysis-content {
+    padding: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.ai-result {
+    margin-bottom: 8px;
+}
+
+.ai-result-content {
+    max-height: 200px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px;
+    background-color: rgba(0, 0, 0, 0.02);
+    border-radius: 4px;
+    margin-top: 8px;
+}
+
+.ai-result-header {
+    cursor: pointer;
+    padding: 6px 0;
+}
+
+.ai-result-header.collapsed+.ai-result-content {
+    display: none;
+}
+
+.ai-result-status {
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.ai-result-status.pass {
+    background-color: #e6f4ea;
+    color: #0f9d58;
+}
+
+.ai-result-status.fail {
+    background-color: #fce8e6;
+    color: #d93025;
+}
+
+.ai-result-summary {
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.ai-result-details,
+.ai-result-suggestions {
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+}
+
+.ai-rule-selector {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.ai-rule-selector select {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    margin-right: 8px;
+    font-family: var(--font-family);
+}
+
+.ai-analyze-btn {
+    background: linear-gradient(90deg, #4285f4, #8711c1);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.ai-analyze-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.ai-analyze-btn:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.ai-analyze-btn .magic-icon {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ai-analyze-btn .magic-icon svg {
+    width: 16px;
+    height: 16px;
+    fill: white;
+}
+
+.ai-rule-selector-inline .ai-analyze-btn {
+    height: 26px;
+    padding: 0 10px;
+    font-size: 12px;
+}
+
+/* Enhanced AI icon with colorful gradient */
+.ai-icon {
+    width: 20px;
+    height: 20px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ai-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.ai-icon svg path {
+    stroke: url(#ai-gradient);
+    stroke-width: 2px;
+}
+
+/* Improvements for dark mode */
+[data-theme="dark"] .ai-analyze-btn {
+    background: linear-gradient(90deg, #5f97f6, #9c42f5);
+}
+
+/* Menu styles */
+.settings-menu-button {
+    position: absolute;
+    top: 16px;
+    right: 60px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    z-index: 10;
+}
+
+.settings-menu {
+    position: absolute;
+    top: 48px;
+    right: 24px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    width: 300px;
+    z-index: 100;
+    overflow: hidden;
+    display: none;
+}
+
+.settings-menu.open {
+    display: block;
+}
+
+.settings-menu-header {
+    padding: 12px 16px;
+    background-color: #f1f3f4;
+    border-bottom: 1px solid #dadce0;
+}
+
+.settings-menu-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 500;
+    color: #3c4043;
+}
+
+.settings-menu-content {
+    padding: 16px;
+}
+
+.settings-section {
+    margin-bottom: 16px;
+}
+
+.settings-section-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #3c4043;
+    margin-bottom: 8px;
+}
+
+.api-key-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    font-family: var(--font-family);
+    margin-bottom: 8px;
+}
+
+.settings-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.rule-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #dadce0;
+}
+
+.rule-name {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.rule-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.rule-action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #5f6368;
+    transition: color 0.2s;
+}
+
+.rule-action-btn:hover {
+    color: #1a73e8;
+}
+
+.rule-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    display: none;
+}
+
+.rule-dialog.open {
+    display: flex;
+}
+
+.rule-dialog-content {
+    background-color: white;
+    border-radius: 8px;
+    width: 500px;
+    max-width: 90%;
+    max-height: 90%;
+    overflow-y: auto;
+}
+
+.rule-dialog-header {
+    padding: 16px;
+    background-color: #f1f3f4;
+    border-bottom: 1px solid #dadce0;
+}
+
+.rule-dialog-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 500;
+    color: #3c4043;
+}
+
+.rule-dialog-body {
+    padding: 16px;
+}
+
+.rule-form-group {
+    margin-bottom: 16px;
+}
+
+.rule-form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #3c4043;
+    margin-bottom: 8px;
+}
+
+.rule-form-group input,
+.rule-form-group textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    font-family: var(--font-family);
+}
+
+.rule-form-group textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.rule-criteria-list {
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    padding: 8px;
+    margin-bottom: 8px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.rule-criteria-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.rule-criteria-item:last-child {
+    border-bottom: none;
+}
+
+.add-criteria-input {
+    width: calc(100% - 40px);
+    padding: 8px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    font-family: var(--font-family);
+    margin-right: 8px;
+}
+
+.add-criteria-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #4285f4;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.rule-dialog-footer {
+    padding: 16px;
+    background-color: #f1f3f4;
+    border-top: 1px solid #dadce0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Dark mode styles for AI features */
+[data-theme="dark"] .ai-analysis-panel {
+    background-color: #292a2d;
+    border-color: #3c4043;
+}
+
+[data-theme="dark"] .ai-analysis-header {
+    background-color: #202124;
+    border-color: #3c4043;
+}
+
+[data-theme="dark"] .ai-result-status.pass {
+    background-color: rgba(15, 157, 88, 0.2);
+    color: #81c995;
+}
+
+[data-theme="dark"] .ai-result-status.fail {
+    background-color: rgba(217, 48, 37, 0.2);
+    color: #f28b82;
+}
+
+[data-theme="dark"] .settings-menu {
+    background-color: #292a2d;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .settings-menu-header {
+    background-color: #202124;
+    border-color: #3c4043;
+}
+
+[data-theme="dark"] .settings-menu-header h3 {
+    color: #e8eaed;
+}
+
+[data-theme="dark"] .settings-section-title {
+    color: #e8eaed;
+}
+
+[data-theme="dark"] .api-key-input {
+    background-color: #202124;
+    border-color: #3c4043;
+    color: #e8eaed;
+}
+
+[data-theme="dark"] .rule-item {
+    border-color: #3c4043;
+}
+
+[data-theme="dark"] .rule-action-btn {
+    color: #9aa0a6;
+}
+
+[data-theme="dark"] .rule-action-btn:hover {
+    color: #8ab4f8;
+}
+
+[data-theme="dark"] .rule-dialog-content {
+    background-color: #292a2d;
+}
+
+[data-theme="dark"] .rule-dialog-header {
+    background-color: #202124;
+    border-color: #3c4043;
+}
+
+[data-theme="dark"] .rule-dialog-header h3 {
+    color: #e8eaed;
+}
+
+[data-theme="dark"] .rule-form-group label {
+    color: #e8eaed;
+}
+
+[data-theme="dark"] .rule-form-group input,
+[data-theme="dark"] .rule-form-group textarea {
+    background-color: #202124;
+    border-color: #3c4043;
+    color: #e8eaed;
+}
+
+[data-theme="dark"] .rule-criteria-list {
+    background-color: #202124;
+    border-color: #3c4043;
+}
+
+[data-theme="dark"] .rule-criteria-item {
+    border-color: #3c4043;
+}
+
+[data-theme="dark"] .add-criteria-input {
+    background-color: #202124;
+    border-color: #3c4043;
+    color: #e8eaed;
+}
+
+[data-theme="dark"] .rule-dialog-footer {
+    background-color: #202124;
+    border-color: #3c4043;
+}
+
+/* Improved collapsible section styles */
+.collapsible-section {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dadce0;
+    margin-bottom: 12px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.collapsible-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background-color: #e8eaed;
+    border-bottom: 1px solid #dadce0;
+    cursor: pointer;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.collapsible-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.collapsible-content {
+    padding: 12px;
+    transition: max-height 0.3s ease-out;
+    overflow-y: auto;
+    max-height: 500px;
+    /* Increased height for better visibility */
+    scrollbar-width: thin;
+}
+
+/* When section is collapsed, hide content */
+.collapsible-section.collapsed .collapsible-content {
+    display: none;
+}
+
+/* Rotate collapse icon when collapsed */
+.collapsible-section.collapsed .collapse-icon {
+    transform: rotate(180deg);
+}
+
+/* Header actions styling */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.controls-header-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.controls-header-buttons button {
+    padding: 4px 8px;
+    font-size: 12px;
+    min-width: auto;
+}
+
+/* AI rule selector in header */
+.ai-rule-selector-inline {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 300px;
+}
+
+.ai-rule-selector-inline select {
+    height: 26px;
+    max-width: 200px;
+    font-size: 12px;
+    padding: 0 8px;
+    border: 1px solid var(--gray-300);
+    border-radius: 4px;
+}
+
+.ai-rule-selector-inline .ai-analyze-btn {
+    height: 26px;
+    padding: 0 10px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+}
+
+/* Vertical Scrolling for content areas */
+#statusButtonsContent {
+    max-height: 500px;
+    overflow-y: auto;
+    padding-right: 8px;
+    scrollbar-width: thin;
+}
+
+#aiAnalysisContent {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-bottom: 16px;
+}
+
+/* Ensure the status buttons wrapper doesn't scroll itself */
+.status-buttons-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-bottom: 20px;
+}
+
+/* Status buttons need to be more compact but still usable */
+.status-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.status-buttons-primary,
+.status-buttons-secondary {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Give the comments field more space */
+.comments-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+
+.comments-field label {
+    font-weight: 500;
+}
+
+.comments-field textarea {
+    min-height: 120px;
+    max-height: none;
+    /* Allow natural expansion */
+    width: 100%;
+    resize: vertical;
+    padding: 8px;
+    font-family: var(--font-family);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    line-height: 1.5;
+}
+
+/* Ensure buttons don't crowd smaller screens */
+@media (max-width: 768px) {
+
+    .status-buttons-primary,
+    .status-buttons-secondary {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .status-btn {
+        width: 100%;
+    }
+}
+
+@media (max-height: 600px) {
+    .collapsible-content {
+        max-height: 180px;
+    }
+
+    .ai-result-content {
+        max-height: 150px;
+    }
+
+    .status-buttons-wrapper {
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+}
+
+/* Dark mode improvements for settings and icons */
+[data-theme="dark"] .theme-switch-label {
+    color: #e8eaed;
+}
+
+[data-theme="dark"] .version {
+    color: #9aa0a6;
+}
+
+/* GitHub icon visibility fix */
+[data-theme="dark"] .github-icon {
+    filter: invert(1) opacity(0.7);
+}
+
+[data-theme="dark"] .github-link:hover .github-icon {
+    filter: invert(1) opacity(1);
+}
+
+/* Settings menu button fix */
+[data-theme="dark"] .settings-menu-button {
+    color: #e8eaed;
+}
+
+/* Rule name in settings - fix color */
+[data-theme="dark"] .rule-name {
+    color: #e8eaed;
+}
+
+/* Section divider visibility in dark mode */
+.section-divider {
+    height: 1px;
+    background-color: #dadce0;
+    margin: 16px 0;
+    opacity: 0.5;
+}
+
+[data-theme="dark"] .section-divider {
+    background-color: #5f6368;
+    opacity: 0.7;
+}
+
+/* Make settings buttons more visible */
+[data-theme="dark"] .action-button.primary {
+    background-color: #4285f4;
+    color: white;
+}
+
+[data-theme="dark"] .action-button.secondary {
+    background-color: transparent;
+    color: #8ab4f8;
+    border: 1px solid #8ab4f8;
+}
+
+/* Fix collapsible section headers text */
+[data-theme="dark"] .collapsible-title {
+    color: #e8eaed;
+}
+
+/* Fix info-header label color */
+[data-theme="dark"] .info-header label {
+    color: #e8eaed;
+}
+
+/* Description text in dark mode */
+[data-theme="dark"] .description {
+    color: #9aa0a6;
+}
+
+/* Better visibility for content in dark mode */
+[data-theme="dark"] .collapsible-section {
+    background-color: #292a2d;
+    border-color: #3c4043;
+}
+
+[data-theme="dark"] .collapsible-header {
+    background-color: #202124;
+    border-color: #3c4043;
+}
+
+/* Better contrast for the AI rule selector in dark mode */
+[data-theme="dark"] .ai-rule-selector-inline select {
+    background-color: #292a2d;
+    border-color: #5f6368;
+    color: #e8eaed;
+}
+
+/* Fix for input fields and labels in dark mode */
+[data-theme="dark"] input[type="number"],
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="password"] {
+    background-color: #202124;
+    border-color: #5f6368;
+    color: #e8eaed;
+}
+
+[data-theme="dark"] label {
+    color: #e8eaed;
+}
+
+[data-theme="dark"] .start-index-info {
+    color: #9aa0a6;
+}
+
+/* Improved button styling in dark mode */
+[data-theme="dark"] .collapse-btn {
+    color: #9aa0a6;
+}
+
+[data-theme="dark"] .collapse-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #8ab4f8;
+}
+
+.github-link, .settings-menu-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 48px; /* Set a consistent height for the container */
+    width: 48px; /* Set a consistent width for the container */
+    padding: 0;
+    margin: 0;
+    position: absolute;
+    top: 0;
+}
+
+.settings-menu-button {
+    right: 60px;
+}
+
+.github-link {
+    right: 16px;
+}
+
+.github-icon,
+.settings-menu-button svg {
+    /* Reset icon sizes to prevent different rendering */
+    width: 24px;
+    height: 24px;
 }
