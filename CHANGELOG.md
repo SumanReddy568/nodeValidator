@@ -1,4 +1,7 @@
 ## [1.1.1] - 2025-08-11
+- zipper fix
+
+## [1.1.1] - 2025-08-11
 - Merge pull request #8 from SumanReddy568/integrate_ai Integrate Ai
 
 ## [1.1.0] - 2025-08-08
