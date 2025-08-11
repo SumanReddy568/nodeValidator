@@ -110,6 +110,9 @@ for required_file in \
     "manifest.json" \
     "src/background/background.js" \
     "src/content/content.js" \
+    "src/utils/csvUtils.js" \
+    "src/utils/ai.js" \
+    "src/utils/aiUIHandler.js" \
     "src/devtools/devtools.js" \
     "public/devtools.html" \
     "public/panel.html" \
@@ -122,6 +125,17 @@ for required_file in \
         exit 1
     fi
 done
+
+# Additional check specifically for AI files
+echo "Verifying AI files..."
+if ! unzip -l "$ZIP_FILE" | grep -q "src/utils/ai.js"; then
+    echo "Error: AI utility file not included in zip"
+    exit 1
+fi
+if ! unzip -l "$ZIP_FILE" | grep -q "src/utils/aiUIHandler.js"; then
+    echo "Error: AI UI Handler file not included in zip"
+    exit 1
+fi
 
 echo "Extension package created successfully at: $ZIP_FILE"
 
