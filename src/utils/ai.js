@@ -234,44 +234,44 @@
          */
         generatePrompt(elementData, rule) {
             const promptText = `
-You are an accessibility expert tasked with evaluating whether an HTML element complies with WCAG guidelines.
+                You are an accessibility expert tasked with evaluating whether an HTML element complies with WCAG guidelines.
 
-RULE TO EVALUATE: ${rule.id} - ${rule.name}
-RULE DESCRIPTION: ${rule.description}
-RULE DETAILS: ${rule.details}
-RULE CRITERIA:
-${rule.criteria.map(c => '- ' + c).join('\n')}
+                RULE TO EVALUATE: ${rule.id} - ${rule.name}
+                RULE DESCRIPTION: ${rule.description}
+                RULE DETAILS: ${rule.details}
+                RULE CRITERIA:
+                ${rule.criteria.map(c => '- ' + c).join('\n')}
 
-ELEMENT DATA:
-1. HTML: 
-${elementData.html}
+                ELEMENT DATA:
+                1. HTML: 
+                ${elementData.html}
 
-2. ACCESSIBILITY PROPERTIES:
-${elementData.accessibility}
+                2. ACCESSIBILITY PROPERTIES:
+                ${elementData.accessibility}
 
-3. CSS PROPERTIES:
-${elementData.cssProperties}
+                3. CSS PROPERTIES:
+                ${elementData.cssProperties}
 
-4. NODE ATTRIBUTES:
-${elementData.attributes}
+                4. NODE ATTRIBUTES:
+                ${elementData.attributes}
 
-INSTRUCTIONS:
-1. Analyze if the element complies with the specified accessibility rule.
-2. Determine a PASS/FAIL status based on your analysis.
-3. If FAIL, explain specifically why it fails and what needs to be fixed.
-4. If PASS, explain why it passes and any potential edge cases to be aware of.
-5. Provide specific code suggestions for improvement if needed.
+                INSTRUCTIONS:
+                1. Analyze if the element complies with the specified accessibility rule.
+                2. Determine a PASS/FAIL status based on your analysis.
+                3. If FAIL, explain specifically why it fails and what needs to be fixed.
+                4. If PASS, explain why it passes and any potential edge cases to be aware of.
+                5. Provide specific code suggestions for improvement if needed.
 
-FORMAT YOUR RESPONSE IN THIS JSON STRUCTURE:
-{
-  "status": "PASS" or "FAIL",
-  "summary": "Brief summary of the evaluation (1-2 sentences)",
-  "details": "Detailed explanation of the evaluation",
-  "suggestions": "Specific code suggestions for improvement if needed"
-}
+                FORMAT YOUR RESPONSE IN THIS JSON STRUCTURE:
+                {
+                "status": "PASS" or "FAIL",
+                "summary": "Brief summary of the evaluation (1-2 sentences)",
+                "details": "Detailed explanation of the evaluation",
+                "suggestions": "Specific code suggestions for improvement if needed"
+                }
 
-CRITICAL: The entire response MUST be a single, valid JSON object, and nothing else. Do not include any pre-text, post-text, or markdown.
-`;
+                CRITICAL: The entire response MUST be a single, valid JSON object, and nothing else. Do not include any pre-text, post-text, or markdown.
+                `;
             console.log('Generated prompt:', promptText);
             return promptText;
         }
@@ -324,7 +324,8 @@ CRITICAL: The entire response MUST be a single, valid JSON object, and nothing e
                                 summary: 'Failed to parse AI response',
                                 details: `The AI returned a response that could not be parsed as valid JSON.
                                             Raw Response: ${rawResponse}`,
-                                suggestions: `Raw Response: ${rawResponse}` // Return the raw response for debugging
+                                // Return the raw response for debugging
+                                suggestions: `Raw Response: ${rawResponse}`
                             };
                         }
                     }
@@ -374,6 +375,12 @@ CRITICAL: The entire response MUST be a single, valid JSON object, and nothing e
                         topP: 0.8,
                         topK: 40
                     }
+                    /**
+                     * why 0.2?
+                     *   Predictable outputs: Helpful for consistent JSON format compliance
+                     *   Reduced randomness: Avoids unexpected or irrelevant accessibility suggestions
+                     *   Focused responses: Model stays on-topic discussing only relevant accessibility issues
+                     */
                 };
 
                 console.log('API Request Body:', JSON.stringify(requestBody, null, 2));
@@ -405,8 +412,6 @@ CRITICAL: The entire response MUST be a single, valid JSON object, and nothing e
             }
         }
     }
-
-    // Expose the AIAnalyzer globally
     window.aiAnalyzer = new AIAnalyzer();
 })();
 

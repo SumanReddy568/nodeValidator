@@ -223,10 +223,8 @@
             if (analyzeWithAI) {
                 analyzeWithAI.addEventListener('click', function (e) {
                     e.stopPropagation(); // Prevent collapsing the AI panel
-
                     // Expand AI panel and collapse status section
                     expandCollapseManager.expandSection('aiAnalysisPanel');
-
                     // Scroll to make the AI panel visible
                     if (aiAnalysisPanel) {
                         setTimeout(function () {
@@ -254,7 +252,6 @@
         // Ensure status section is expanded by default
         setTimeout(() => {
             expandCollapseManager.expandSection('statusButtonsSection');
-
             // Make sure comments field is visible by default
             const statusContent = document.getElementById('statusButtonsContent');
             const commentsField = document.querySelector('.comments-field');

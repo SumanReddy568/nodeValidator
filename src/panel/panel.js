@@ -483,6 +483,9 @@ function initializePanel() {
         return notification;
     }
 
+    // Make showNotification available globally
+    window.showNotification = showNotification;
+
     // Add debug logging to help diagnose issues
     chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
         console.log('Panel received message:', message.action, message);

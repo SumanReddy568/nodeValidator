@@ -227,10 +227,7 @@ console.log('Node Validator Content Script loaded');
             try {
                 // First, make sure the element is visible
                 showHiddenElement(element);
-
-                // Get the HTML snippet first before any modifications
                 const htmlSnippet = element.outerHTML || '-';
-
                 // Get parent HTML snippet (parent element's outerHTML)
                 let parentHtmlSnippet = '-';
                 if (element.parentElement) {
@@ -240,7 +237,6 @@ console.log('Node Validator Content Script loaded');
                         console.warn('Error getting parent HTML:', e);
                     }
                 }
-
                 // Get child HTML snippet (all children combined)
                 let childHtmlSnippet = '-';
                 if (element.children && element.children.length > 0) {
