@@ -2186,8 +2186,8 @@ function addSettingsStyles() {
 
 // Initialize AI-related features
 async function initializeAIFeatures() {
-    // Load AI toggle preference from local storage
-    const aiEnabled = localStorage.getItem('aiOptEnabled') !== 'false'; // Default to true if not set
+    // Load AI toggle preference from local storage - DEFAULT TO FALSE
+    const aiEnabled = localStorage.getItem('aiOptEnabled') === 'true'; // Default to false if not set
     const aiToggle = document.getElementById('aiOptToggle');
     const aiAnalysisSection = document.querySelector('.ai-analysis-section');
 
