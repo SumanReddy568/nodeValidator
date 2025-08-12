@@ -1,3 +1,6 @@
+## [1.1.1] - 2025-08-12
+- fix show notification error
+
 ## [1.1.1] - 2025-08-11
 - zipper fix
 
