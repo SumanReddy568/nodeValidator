@@ -18,6 +18,8 @@ window.addEventListener('error', function (event) {
 // Store the current element data for AI analysis
 let currentElementData = {
     html: '',
+    parentHtml: '',  // Add parentHtml field
+    childHtml: '',   // Add childHtml field
     accessibility: '',
     cssProperties: '',
     attributes: ''
@@ -2023,6 +2025,7 @@ function initializePanel() {
     // Initialize everything in the correct order
     function start() {
         addNotificationStyles();
+        addSettingsStyles(); // Add the new styles
         setupStatusButtons();
         setupCopyButtons();
         addModeToggle();
@@ -2158,9 +2161,59 @@ elementStyles.textContent = `
 `;
 document.head.appendChild(elementStyles);
 
+// Add this function to handle settings styles
+function addSettingsStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .toggle-setting {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .toggle-label {
+            font-weight: 500;
+        }
+        .setting-description {
+            font-size: 12px;
+            color: var(--gray-600);
+            margin-top: 0;
+            margin-bottom: 16px;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
 // Initialize AI-related features
 async function initializeAIFeatures() {
+    // Load AI toggle preference from local storage
+    const aiEnabled = localStorage.getItem('aiOptEnabled') !== 'false'; // Default to true if not set
+    const aiToggle = document.getElementById('aiOptToggle');
+    const aiAnalysisSection = document.querySelector('.ai-analysis-section');
+
+    // Set initial toggle state
+    if (aiToggle) {
+        aiToggle.checked = aiEnabled;
+
+        // Add event listener for toggle changes - avoid inline handlers
+        aiToggle.addEventListener('change', function () {
+            const enabled = this.checked;
+            localStorage.setItem('aiOptEnabled', enabled);
+
+            // Show/hide AI analysis section
+            if (aiAnalysisSection) {
+                aiAnalysisSection.style.display = enabled ? 'block' : 'none';
+            }
+        });
+    }
+
+    // Set initial visibility of AI analysis section
+    if (aiAnalysisSection) {
+        aiAnalysisSection.style.display = aiEnabled ? 'block' : 'none';
+    }
+
     // Load rules and API key first
+
     try {
         // Wait for the settings to load before proceeding
         const result = await window.aiAnalyzer.loadSettings();
@@ -2650,6 +2703,8 @@ function populateRuleDropdown() {
 function updateCurrentElementData(details) {
     currentElementData = {
         html: details.html || '',
+        parentHtml: details.parentHtml || '',  // Include parent HTML
+        childHtml: details.childHtml || '',    // Include child HTML
         accessibility: details.accessibility || '',
         cssProperties: details.cssProperties || '',
         attributes: details.attributes || ''

@@ -5,6 +5,7 @@
     // Wait for DOM to be ready
     document.addEventListener('DOMContentLoaded', function () {
         initializeAIUIHandlers();
+        initializeSettingsMenu(); // Add settings menu initialization
     });
 
     // Define the global renderer function that panel.js will use
@@ -267,7 +268,42 @@
                     });
                 }
             }
-        // Slightly longer delay to ensure DOM is ready
-        }, 200); 
+            // Slightly longer delay to ensure DOM is ready
+        }, 200);
+    }
+
+    /**
+     * Initialize settings menu toggle functionality
+     * Moved from inline script in panel.html to comply with CSP
+     */
+    function initializeSettingsMenu() {
+        const settingsMenuButton = document.getElementById('settingsMenuButton');
+        const settingsMenu = document.getElementById('settingsMenu');
+
+        if (!settingsMenuButton || !settingsMenu) {
+            console.warn('Settings menu elements not found');
+            return;
+        }
+
+        // Toggle settings menu when settings button is clicked
+        settingsMenuButton.addEventListener('click', function (e) {
+            e.stopPropagation(); // Prevent event from bubbling to document
+            settingsMenu.classList.toggle('visible');
+        });
+
+        // Close settings menu when clicking outside
+        document.addEventListener('click', function (e) {
+            // Check if click is outside the settings menu and the menu is visible
+            if (settingsMenu.classList.contains('visible') &&
+                !settingsMenu.contains(e.target) &&
+                e.target !== settingsMenuButton) {
+                settingsMenu.classList.remove('visible');
+            }
+        });
+
+        // Prevent clicks within the menu from closing it
+        settingsMenu.addEventListener('click', function (e) {
+            e.stopPropagation();
+        });
     }
 })();

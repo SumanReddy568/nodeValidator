@@ -9,6 +9,106 @@
     <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto+Mono&display=swap"
         rel="stylesheet">
     <script src="../lib/papaparse.min.js"></script>
+    <style>
+        /* Settings menu scrollable styles */
+        .settings-menu {
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            display: none; /* Hide by default */
+        }
+        
+        .settings-menu.visible {
+            display: flex; /* Show when visible class is added */
+        }
+        
+        .settings-menu-header {
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-color);
+            z-index: 10;
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .settings-menu-content {
+            flex: 1;
+            overflow-y: auto;
+            max-height: calc(80vh - 53px); /* Subtract header height */
+            padding: 15px;
+            scrollbar-width: thin;
+        }
+        
+        .settings-menu-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .settings-menu-content::-webkit-scrollbar-thumb {
+            background-color: var(--border-color);
+            border-radius: 3px;
+        }
+        
+        /* Add shadow to indicate scrollable content */
+        .settings-menu-content:after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 10px;
+            background: linear-gradient(to top, var(--bg-color), transparent);
+            pointer-events: none;
+        }
+        
+        /* Status buttons scrollable styles */
+        #statusButtonsSection {
+            max-height: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #statusButtonsHeader {
+            position: sticky;
+            top: 0;
+            background-color: var(--bg-color);
+            z-index: 10;
+        }
+        
+        #statusButtonsContent {
+            flex: 1;
+            overflow-y: auto;
+            max-height: 350px; /* Allow room for header */
+            scrollbar-width: thin;
+        }
+        
+        #statusButtonsContent::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        #statusButtonsContent::-webkit-scrollbar-thumb {
+            background-color: var(--border-color);
+            border-radius: 3px;
+        }
+        
+        .status-buttons-wrapper {
+            padding: 0 0 8px 0;
+        }
+        
+        .status-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .comments-field {
+            padding-bottom: 10px;
+        }
+        
+        .comments-field textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+    </style>
 </head>
 
 <body>
@@ -62,6 +162,19 @@
                     <h3>Settings</h3>
                 </div>
                 <div class="settings-menu-content">
+                    <!-- Add AI toggle section -->
+                    <div class="settings-section">
+                        <div class="settings-section-title">AI Features</div>
+                        <div class="toggle-setting">
+                            <label for="aiOptToggle" class="toggle-label">Enable AI Analysis</label>
+                            <label class="switch">
+                                <input type="checkbox" id="aiOptToggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <p class="setting-description">Show AI analysis tools for accessibility testing</p>
+                    </div>
+                    
                     <div class="settings-section">
                         <div class="settings-section-title">Gemini API Key</div>
                         <input type="password" id="geminiApiKey" class="api-key-input"
@@ -124,6 +237,7 @@
         <!-- Upload Section -->
         <div class="upload-section" id="uploadSection">
             <div class="upload-container" id="dropArea">
+                <!-- Replace inline event with event listeners in JS -->
                 <img src="images/upload.svg" alt="Upload" class="upload-icon">
                 <h3>Upload CSV File</h3>
                 <p>Drag &amp; drop a CSV file or click to browse</p>
@@ -151,7 +265,7 @@
                     <button id="newRunButton" class="action-button secondary">New Run</button>
                     <button id="startValidation" class="action-button primary">Start Validation</button>
                     <button id="exportResults" class="action-button secondary" disabled>Export Results</button>
-                </div>
+                </div>  
             </div>
 
             <!-- Stats Summary -->
@@ -430,10 +544,73 @@
             </div>
         </div>
     </div>
+    <script>
+        // Global error handler that doesn't use inline handlers
+        window.addEventListener('error', function(event) {
+            console.error('Global error caught:', event.error);
+
+            try {
+                const container = document.querySelector('.panel-container');
+                if (container) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.style.padding = '20px';
+                    errorDiv.style.textAlign = 'center';
+
+                    const errorTitle = document.createElement('h2');
+                    errorTitle.style.color = 'var(--danger, #db4437)';
+                    errorTitle.style.marginBottom = '16px';
+                    errorTitle.textContent = 'Oops! Something went wrong';
+
+                    const errorMsg = document.createElement('p');
+                    errorMsg.style.marginBottom = '20px';
+                    errorMsg.textContent = 'An error occurred while loading the panel. Try reopening DevTools.';
+
+                    const reloadButton = document.createElement('button');
+                    reloadButton.className = 'action-button primary';
+                    reloadButton.textContent = 'Reload Panel';
+                    reloadButton.addEventListener('click', function() {
+                        location.reload();
+                    });
+
+                    errorDiv.appendChild(errorTitle);
+                    errorDiv.appendChild(errorMsg);
+                    errorDiv.appendChild(reloadButton);
+
+                    container.innerHTML = '';
+                    container.appendChild(errorDiv);
+                }
+            } catch (e) {
+                document.body.innerHTML = '';
+
+                const errorDiv = document.createElement('div');
+                errorDiv.style.padding = '20px';
+                errorDiv.style.textAlign = 'center';
+                errorDiv.style.fontFamily = 'system-ui';
+
+                const errorTitle = document.createElement('h2');
+                errorTitle.style.color = '#db4437';
+                errorTitle.textContent = 'Node Validator Error';
+
+                const errorMsg = document.createElement('p');
+                errorMsg.textContent = 'An error occurred while loading the panel.';
+
+                const reloadButton = document.createElement('button');
+                reloadButton.textContent = 'Reload Panel';
+                reloadButton.addEventListener('click', function() {
+                    location.reload();
+                });
+
+                errorDiv.appendChild(errorTitle);
+                errorDiv.appendChild(errorMsg);
+                errorDiv.appendChild(reloadButton);
+
+                document.body.appendChild(errorDiv);
+            }
+        });
+    </script>
     <script src="../src/utils/csvUtils.js"></script>
     <script src="../src/utils/ai.js"></script>
     <script src="../src/utils/aiUIHandler.js"></script>
     <script src="../src/panel/panel.js"></script>
 </body>
-
 </html>

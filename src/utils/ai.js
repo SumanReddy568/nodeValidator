@@ -243,24 +243,32 @@
                 ${rule.criteria.map(c => '- ' + c).join('\n')}
 
                 ELEMENT DATA:
-                1. HTML: 
+                1. MAIN HTML ELEMENT: 
                 ${elementData.html}
 
-                2. ACCESSIBILITY PROPERTIES:
+                2. PARENT HTML ELEMENT (Important for context):
+                ${elementData.parentHtml}
+
+                3. CHILD HTML ELEMENTS (Important for nested accessibility issues):
+                ${elementData.childHtml}
+
+                4. ACCESSIBILITY PROPERTIES:
                 ${elementData.accessibility}
 
-                3. CSS PROPERTIES:
+                5. CSS PROPERTIES:
                 ${elementData.cssProperties}
 
-                4. NODE ATTRIBUTES:
+                6. NODE ATTRIBUTES:
                 ${elementData.attributes}
 
                 INSTRUCTIONS:
                 1. Analyze if the element complies with the specified accessibility rule.
-                2. Determine a PASS/FAIL status based on your analysis.
-                3. If FAIL, explain specifically why it fails and what needs to be fixed.
-                4. If PASS, explain why it passes and any potential edge cases to be aware of.
-                5. Provide specific code suggestions for improvement if needed.
+                2. Consider how the parent element might affect accessibility (e.g., providing context or aria properties).
+                3. Examine child elements for nested accessibility issues or complementary accessibility features.
+                4. Determine a PASS/FAIL status based on your comprehensive analysis.
+                5. If FAIL, explain specifically why it fails and what needs to be fixed.
+                6. If PASS, explain why it passes and any potential edge cases to be aware of.
+                7. Provide specific code suggestions for improvement if needed.
 
                 FORMAT YOUR RESPONSE IN THIS JSON STRUCTURE:
                 {
@@ -369,18 +377,18 @@
                             text: prompt
                         }]
                     }],
-                    generationConfig: {
-                        temperature: 0.2,
-                        maxOutputTokens: 2048,
-                        topP: 0.8,
-                        topK: 40
-                    }
                     /**
                      * why 0.2?
                      *   Predictable outputs: Helpful for consistent JSON format compliance
                      *   Reduced randomness: Avoids unexpected or irrelevant accessibility suggestions
                      *   Focused responses: Model stays on-topic discussing only relevant accessibility issues
                      */
+                    generationConfig: {
+                        temperature: 1,
+                        maxOutputTokens: 2048,
+                        topP: 0.8,
+                        topK: 40
+                    }
                 };
 
                 console.log('API Request Body:', JSON.stringify(requestBody, null, 2));
