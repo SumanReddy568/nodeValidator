@@ -1,3 +1,6 @@
+## [1.1.2] - 2025-08-12
+- Ai Flag change
+
 ## [1.1.1] - 2025-08-12
 - fix show notification error
 
