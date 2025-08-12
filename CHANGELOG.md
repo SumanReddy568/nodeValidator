@@ -1,3 +1,6 @@
+## [1.1.3] - 2025-08-12
+- diable ai by deafult
+
 ## [1.1.2] - 2025-08-12
 - Ai Flag change
 
