@@ -1,3 +1,6 @@
+## [1.1.4] - 2025-08-13
+- role attr fixA
+
 ## [1.1.3] - 2025-08-12
 - diable ai by deafult
 
