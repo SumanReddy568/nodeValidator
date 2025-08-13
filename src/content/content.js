@@ -269,6 +269,11 @@ console.log('Node Validator Content Script loaded');
                 try {
                     const a11yInfo = [];
 
+                    // First, check for role attribute directly (ensure it's captured)
+                    if (element.hasAttribute('role')) {
+                        a11yInfo.push(`role: "${element.getAttribute('role')}"`);
+                    }
+
                     // Check for all attributes that start with "alt"
                     Array.from(element.attributes)
                         .filter(attr => attr.name.startsWith('alt'))
@@ -276,40 +281,42 @@ console.log('Node Validator Content Script loaded');
                             a11yInfo.push(`${attr.name}: "${attr.value}"`);
                         });
 
-                    // Role
-                    if (element.getAttribute('role')) {
-                        a11yInfo.push(`Role: ${element.getAttribute('role')}`);
-                    }
-
-                    // All ARIA attributes on this element
+                    // All ARIA attributes on this element (including role again to ensure it's not missed)
                     Array.from(element.attributes)
-                        .filter(attr => attr.name.startsWith('aria-'))
+                        .filter(attr => attr.name.startsWith('aria-') || attr.name === 'role')
                         .forEach(attr => {
                             a11yInfo.push(`${attr.name}: "${attr.value}"`);
                         });
 
-                    // All ARIA attributes on descendants (robust)
+                    // All ARIA attributes and roles on descendants
                     const allDescendants = element.querySelectorAll('*');
                     allDescendants.forEach(desc => {
-                        Array.from(desc.attributes)
-                            .filter(attr => attr.name.startsWith('aria-'))
-                            .forEach(attr => {
-                                a11yInfo.push(`[descendant ${desc.tagName.toLowerCase()}] ${attr.name}: "${attr.value}"`);
+                        const relevantAttributes = Array.from(desc.attributes)
+                            .filter(attr => attr.name.startsWith('aria-') || attr.name === 'role');
+
+                        if (relevantAttributes.length > 0) {
+                            const tagInfo = `[descendant ${desc.tagName.toLowerCase()}]`;
+                            relevantAttributes.forEach(attr => {
+                                a11yInfo.push(`${tagInfo} ${attr.name}: "${attr.value}"`);
                             });
+                        }
                     });
 
-                    // All ARIA attributes on closest 2 ancestors only
+                    // All ARIA attributes and roles on closest 2 ancestors
                     let ancestor = element.parentElement;
                     let ancestorLevel = 0;
                     while (ancestor && ancestorLevel < 2) {
-                        const ariaAttrs = Array.from(ancestor.attributes)
-                            .filter(attr => attr.name.startsWith('aria-'));
-                        if (ariaAttrs.length > 0) {
+                        const relevantAttributes = Array.from(ancestor.attributes)
+                            .filter(attr => attr.name.startsWith('aria-') || attr.name === 'role');
+
+                        if (relevantAttributes.length > 0) {
                             const tag = ancestor.tagName.toLowerCase();
                             const id = ancestor.id ? `#${ancestor.id}` : '';
                             const cls = ancestor.className ? `.${ancestor.className.split(' ').join('.')}` : '';
-                            ariaAttrs.forEach(attr => {
-                                a11yInfo.push(`[ancestor${ancestorLevel === 0 ? '' : ' (grandparent)'} ${tag}${id}${cls}] ${attr.name}: "${attr.value}"`);
+                            const ancestorInfo = `[ancestor${ancestorLevel === 0 ? '' : ' (grandparent)'} ${tag}${id}${cls}]`;
+
+                            relevantAttributes.forEach(attr => {
+                                a11yInfo.push(`${ancestorInfo} ${attr.name}: "${attr.value}"`);
                             });
                         }
                         ancestor = ancestor.parentElement;
