@@ -2734,37 +2734,36 @@ function getInteractiveElements() {
 function highlightInteractiveElements() {
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
         if (!tabs[0]) return;
-        chrome.scripting.executeScript({
-            target: { tabId: tabs[0].id },
-            func: () => {
-                // Remove previous highlights
-                document.querySelectorAll('.nv-interactive-highlight').forEach(el => {
-                    el.classList.remove('nv-interactive-highlight');
-                });
-                // Find interactive elements
-                const selectors = [
-                    'button', 'a[href]', 'input:not([type="hidden"])', 'select', 'textarea',
-                    '[tabindex]:not([tabindex="-1"])', '[role="button"]', '[role="link"]', '[role="checkbox"]',
-                    '[role="switch"]', '[role="menuitem"]', '[contenteditable="true"]'
-                ];
-                const elements = Array.from(document.querySelectorAll(selectors.join(',')))
-                    .filter(el => !el.disabled && el.offsetParent !== null);
-                elements.forEach(el => {
-                    el.classList.add('nv-interactive-highlight');
-                    el.style.outline = '2px solid #ff9800';
-                    el.style.outlineOffset = '2px';
-                });
-                if (elements.length > 0) {
-                    elements[0].focus();
-                }
-                setTimeout(() => {
+        // First, clear highlights using sendMessage
+        chrome.tabs.sendMessage(tabs[0].id, { action: 'CLEAR_HIGHLIGHTS' }, function (response) {
+            // Now highlight interactive elements
+            chrome.scripting.executeScript({
+                target: { tabId: tabs[0].id },
+                func: () => {
+                    const selectors = [
+                        'button', 'a[href]', 'input:not([type="hidden"])', 'select', 'textarea',
+                        '[tabindex]:not([tabindex="-1"])', '[role="button"]', '[role="link"]', '[role="checkbox"]',
+                        '[role="switch"]', '[role="menuitem"]', '[contenteditable="true"]'
+                    ];
+                    const elements = Array.from(document.querySelectorAll(selectors.join(',')))
+                        .filter(el => !el.disabled && el.offsetParent !== null);
                     elements.forEach(el => {
-                        el.classList.remove('nv-interactive-highlight');
-                        el.style.outline = '';
-                        el.style.outlineOffset = '';
+                        el.classList.add('nv-interactive-highlight');
+                        el.style.outline = '2px solid #ff9800';
+                        el.style.outlineOffset = '2px';
                     });
-                }, 4000); // Highlight for 4 seconds
-            }
+                    if (elements.length > 0) {
+                        elements[0].focus();
+                    }
+                    setTimeout(() => {
+                        elements.forEach(el => {
+                            el.classList.remove('nv-interactive-highlight');
+                            el.style.outline = '';
+                            el.style.outlineOffset = '';
+                        });
+                    }, 4000);
+                }
+            });
         });
     });
 }
