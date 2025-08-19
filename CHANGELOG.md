@@ -1,3 +1,6 @@
+## [1.1.6] - 2025-08-19
+- higlight fix
+
 ## [1.1.5] - 2025-08-19
 - Adding interactive check feature
 
