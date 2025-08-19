@@ -251,7 +251,11 @@ body {
     margin-left: auto;
     height: 36px;
 }
-
+.nv-interactive-highlight {
+    outline: 4px solid #002366 !important;
+    outline-offset: 2px !important;
+    transition: outline 0.2s;
+}
 
 .stat-card {
     flex: 1;
