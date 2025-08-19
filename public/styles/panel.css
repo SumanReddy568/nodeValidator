@@ -245,7 +245,13 @@ body {
     gap: 6px;
     margin-bottom: 12px;
     flex-shrink: 0;
+    align-items: center;
 }
+#runInteractiveCheck {
+    margin-left: auto;
+    height: 36px;
+}
+
 
 .stat-card {
     flex: 1;

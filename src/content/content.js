@@ -219,10 +219,24 @@ console.log('Node Validator Content Script loaded');
     function highlightElements(elements) {
         clearHighlights();
 
+        
         if (!elements || elements.length === 0) return;
 
         console.log(`Highlighting ${elements.length} elements`);
-
+        function getInlineEventListeners(element) {
+            const events = [];
+            // List of common event attributes
+            const eventAttrs = [
+                'onclick', 'ondblclick', 'onmousedown', 'onmouseup', 'onmouseover', 'onmouseout',
+                'onmouseenter', 'onmouseleave', 'onkeydown', 'onkeyup', 'onchange', 'oninput', 'onsubmit'
+            ];
+            eventAttrs.forEach(attr => {
+                if (element[attr]) {
+                    events.push(`${attr}: ${element[attr].toString()}`);
+                }
+            });
+            return events;
+        }
         elements.forEach(element => {
             try {
                 // First, make sure the element is visible
@@ -379,7 +393,8 @@ console.log('Node Validator Content Script loaded');
                             childHtml: childHtmlSnippet,
                             attributes: nodeAttributes,
                             accessibility: nodeAccessibility,
-                            cssProperties: nodeCssProperties
+                            cssProperties: nodeCssProperties,
+                            // inlineEvents
                         }
                     });
                 } catch (e) {
@@ -442,6 +457,9 @@ console.log('Node Validator Content Script loaded');
                 }, HIGHLIGHT_DURATION);
 
                 highlightTimeouts.push(timeout);
+
+                // const inlineEvents = getInlineEventListeners(element);
+                // console.log('Inline event listeners:', inlineEvents);
 
             } catch (e) {
                 console.error('Error highlighting element:', e);

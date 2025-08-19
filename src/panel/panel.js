@@ -2719,6 +2719,71 @@ function updateCurrentElementData(details) {
     }
 }
 
+function getInteractiveElements() {
+    // Common interactive selectors
+    const selectors = [
+        'button', 'a[href]', 'input:not([type="hidden"])', 'select', 'textarea',
+        '[tabindex]:not([tabindex="-1"])', '[role="button"]', '[role="link"]', '[role="checkbox"]',
+        '[role="switch"]', '[role="menuitem"]', '[contenteditable="true"]'
+    ];
+    // Query all matching elements
+    return Array.from(document.querySelectorAll(selectors.join(',')))
+        .filter(el => !el.disabled && el.offsetParent !== null);
+}
+
+function highlightInteractiveElements() {
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        if (!tabs[0]) return;
+        chrome.scripting.executeScript({
+            target: { tabId: tabs[0].id },
+            func: () => {
+                // Remove previous highlights
+                document.querySelectorAll('.nv-interactive-highlight').forEach(el => {
+                    el.classList.remove('nv-interactive-highlight');
+                });
+                // Find interactive elements
+                const selectors = [
+                    'button', 'a[href]', 'input:not([type="hidden"])', 'select', 'textarea',
+                    '[tabindex]:not([tabindex="-1"])', '[role="button"]', '[role="link"]', '[role="checkbox"]',
+                    '[role="switch"]', '[role="menuitem"]', '[contenteditable="true"]'
+                ];
+                const elements = Array.from(document.querySelectorAll(selectors.join(',')))
+                    .filter(el => !el.disabled && el.offsetParent !== null);
+                elements.forEach(el => {
+                    el.classList.add('nv-interactive-highlight');
+                    el.style.outline = '2px solid #ff9800';
+                    el.style.outlineOffset = '2px';
+                });
+                if (elements.length > 0) {
+                    elements[0].focus();
+                }
+                setTimeout(() => {
+                    elements.forEach(el => {
+                        el.classList.remove('nv-interactive-highlight');
+                        el.style.outline = '';
+                        el.style.outlineOffset = '';
+                    });
+                }, 4000); // Highlight for 4 seconds
+            }
+        });
+    });
+}
+
+const style = document.createElement('style');
+style.textContent = `
+.nv-interactive-highlight {
+    outline: 2px solid #0004ffff !important;
+    outline-offset: 2px !important;
+    transition: outline 0.2s;
+}
+`;
+document.head.appendChild(style);
+
+// Button click handler
+document.getElementById('runInteractiveCheck')?.addEventListener('click', function () {
+    showNotification('Highlighting all interactive/focusable elements...', 'info');
+    highlightInteractiveElements();
+});
 // Extend the existing message listener to update element data for AI analysis
 chrome.runtime.onMessage.addListener(function (message) {
     // This is the code you want to add
