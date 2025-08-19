@@ -29,6 +29,19 @@ console.log('Node Validator Content Script loaded');
     chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
         console.log('Content script received message:', message.action);
 
+        if (message.action === 'CLEAR_HIGHLIGHTS') {
+            // Clear content script highlights
+            clearHighlights();
+            // ALSO clear interactive highlights
+            document.querySelectorAll('.nv-interactive-highlight').forEach(el => {
+                el.classList.remove('nv-interactive-highlight');
+                el.style.outline = '';
+                el.style.outlineOffset = '';
+            });
+            sendResponse({ success: true });
+            return true;
+        }
+
         if (message.action === 'HIGHLIGHT_NODE') {
             const { targetNode, index, automated } = message.payload;
 

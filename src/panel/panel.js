@@ -2734,42 +2734,34 @@ function getInteractiveElements() {
 function highlightInteractiveElements() {
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
         if (!tabs[0]) return;
-        // Step 1: Reload the tab
-        chrome.tabs.reload(tabs[0].id, {}, function () {
-            // Step 2: Wait for the tab to finish loading
-            chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
-                if (tabId === tabs[0].id && info.status === 'complete') {
-                    chrome.tabs.onUpdated.removeListener(listener);
-                    // Step 3: Clear highlights and run highlight logic
-                    chrome.tabs.sendMessage(tabs[0].id, { action: 'CLEAR_HIGHLIGHTS' }, function () {
-                        chrome.scripting.executeScript({
-                            target: { tabId: tabs[0].id },
-                            func: () => {
-                                const selectors = [
-                                    'button', 'a[href]', 'input:not([type="hidden"])', 'select', 'textarea',
-                                    '[tabindex]:not([tabindex="-1"])', '[role="button"]', '[role="link"]', '[role="checkbox"]',
-                                    '[role="switch"]', '[role="menuitem"]', '[contenteditable="true"]'
-                                ];
-                                const elements = Array.from(document.querySelectorAll(selectors.join(',')))
-                                    .filter(el => !el.disabled && el.offsetParent !== null);
-                                elements.forEach(el => {
-                                    el.classList.add('nv-interactive-highlight');
-                                    el.style.outline = '4px solid #002366';
-                                    el.style.outlineOffset = '2px';
-                                });
-                                if (elements.length > 0) {
-                                    elements[0].focus();
-                                }
-                                setTimeout(() => {
-                                    elements.forEach(el => {
-                                        el.classList.remove('nv-interactive-highlight');
-                                        el.style.outline = '';
-                                        el.style.outlineOffset = '';
-                                    });
-                                }, 4000);
-                            }
-                        });
+        // Step 1: Clear ALL highlights (both content script and interactive) in ALL frames
+        chrome.tabs.sendMessage(tabs[0].id, { action: 'CLEAR_HIGHLIGHTS' }, function () {
+            // Step 2: Highlight interactive elements in ALL frames
+            chrome.scripting.executeScript({
+                target: { tabId: tabs[0].id, allFrames: true },
+                func: () => {
+                    const selectors = [
+                        'button', 'a[href]', 'input:not([type="hidden"])', 'select', 'textarea',
+                        '[tabindex]:not([tabindex="-1"])', '[role="button"]', '[role="link"]', '[role="checkbox"]',
+                        '[role="switch"]', '[role="menuitem"]', '[contenteditable="true"]'
+                    ];
+                    const elements = Array.from(document.querySelectorAll(selectors.join(',')))
+                        .filter(el => !el.disabled && el.offsetParent !== null);
+                    elements.forEach(el => {
+                        el.classList.add('nv-interactive-highlight');
+                        el.style.outline = '4px solid #db4437';
+                        el.style.outlineOffset = '2px';
                     });
+                    if (elements.length > 0) {
+                        elements[0].focus();
+                    }
+                    setTimeout(() => {
+                        elements.forEach(el => {
+                            el.classList.remove('nv-interactive-highlight');
+                            el.style.outline = '';
+                            el.style.outlineOffset = '';
+                        });
+                    }, 4000);
                 }
             });
         });
