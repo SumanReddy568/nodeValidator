@@ -1,3 +1,6 @@
+## [1.1.5] - 2025-08-19
+- Adding interactive check feature
+
 ## [1.1.4] - 2025-08-13
 - role attr fixA
 
