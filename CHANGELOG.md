@@ -1,3 +1,6 @@
+## [1.2.0] - 2025-08-20
+- new AI changes v2
+
 ## [1.1.9] - 2025-08-20
 - interactive fix
 
