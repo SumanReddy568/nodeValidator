@@ -1,7 +1,6 @@
 /**
  * AI Analysis Module
- * 
- * Provides accessibility analysis capabilities using AI (Gemini)
+ * * Provides accessibility analysis capabilities using AI (Gemini)
  */
 
 // Use an IIFE to prevent global variable collisions
@@ -46,10 +45,16 @@
                     this.rules = this.getDefaultRules();
                     await this.saveRules(this.rules);
                 }
-                return { success: true, rules: this.rules };
+                return {
+                    success: true,
+                    rules: this.rules
+                };
             } catch (error) {
                 console.error('Error loading AI analyzer settings:', error);
-                return { success: false, error: error.message };
+                return {
+                    success: false,
+                    error: error.message
+                };
             }
         }
 
@@ -230,57 +235,82 @@
         }
 
         /**
-         * Generate prompt for Gemini based on element data and selected rule
+         * Generate an improved prompt for Gemini based on element data and selected rule
          */
         generatePrompt(elementData, rule) {
             const promptText = `
-                You are an accessibility expert tasked with evaluating whether an HTML element complies with WCAG guidelines.
+                You are a highly specialized and precise accessibility expert. Your task is to perform a technical evaluation of a single HTML element against a specific WCAG guideline, providing a response in a strict, predictable JSON format.
 
-                RULE TO EVALUATE: ${rule.id} - ${rule.name}
-                RULE DESCRIPTION: ${rule.description}
-                RULE DETAILS: ${rule.details}
-                RULE CRITERIA:
-                ${rule.criteria.map(c => '- ' + c).join('\n')}
+                # ANALYSIS CONTEXT
+                ---
+                **WCAG Rule:** ${rule.id} - ${rule.name}
+                **Rule Description:** ${rule.description}
+                **Detailed Criteria:**
+                ${rule.criteria.map((c, index) => `${index + 1}. ${c}`).join('\n')}
 
-                ELEMENT DATA:
-                1. MAIN HTML ELEMENT: 
+                # PROVIDED DATA
+                ---
+                **1. Target HTML Element:**
+                \`\`\`html
                 ${elementData.html}
+                \`\`\`
 
-                2. PARENT HTML ELEMENT (Important for context):
+                **2. Parent HTML Element (for structural context):**
+                \`\`\`html
                 ${elementData.parentHtml}
+                \`\`\`
 
-                3. CHILD HTML ELEMENTS (Important for nested accessibility issues):
+                **3. Child HTML Elements (for nested issues):**
+                \`\`\`html
                 ${elementData.childHtml}
+                \`\`\`
 
-                4. ACCESSIBILITY PROPERTIES:
+                **4. Full Page Source (for broader context):**
+                \`\`\`html
+                ${elementData.pageSource}
+                \`\`\`
+
+                **5. Computed Accessibility Properties (e.g., ARIA attributes, computed roles):**
                 ${elementData.accessibility}
 
-                5. CSS PROPERTIES:
+                **6. Computed CSS Properties (e.g., color, visibility):**
                 ${elementData.cssProperties}
 
-                6. NODE ATTRIBUTES:
-                ${elementData.attributes}
+                # INSTRUCTIONS
+                ---
+                Your analysis must be methodical and precise.
 
-                INSTRUCTIONS:
-                1. Analyze if the element complies with the specified accessibility rule.
-                2. Consider how the parent element might affect accessibility (e.g., providing context or aria properties).
-                3. Examine child elements for nested accessibility issues or complementary accessibility features.
-                4. Determine a PASS/FAIL status based on your comprehensive analysis.
-                5. If FAIL, explain specifically why it fails and what needs to be fixed.
-                6. If PASS, explain why it passes and any potential edge cases to be aware of.
-                7. Provide specific code suggestions for improvement if needed.
+                1.  **Evaluate:** Determine if the "Target HTML Element" meets ALL of the "Detailed Criteria" for the specified WCAG Rule. Use the provided context (parent, children, and full page source) to inform your decision.
+                
+                2.  **Pass/Fail:** Assign a final status of "PASS" or "FAIL".
+                    -   **PASS:** The element fully meets all specified criteria.
+                    -   **FAIL:** The element fails to meet one or more specified criteria.
 
-                FORMAT YOUR RESPONSE IN THIS JSON STRUCTURE:
+                3.  **Summary:** Provide a concise, 1-2 sentence summary of your finding.
+
+                4.  **Details:** Write a detailed explanation.
+                    -   If **FAIL**, explain which specific criteria were not met and provide a technical justification. Reference the code or attributes that are problematic.
+                    -   If **PASS**, explain why it passes and mention any potential edge cases or a brief note on its robustness.
+
+                5.  **Suggestions:** Provide a concrete, actionable code snippet to fix the identified issues.
+                    -   If **FAIL**, provide a specific code example showing how to correct the problem.
+                    -   If **PASS**, provide a code snippet that demonstrates a best-practice or shows how the current code is correct.
+
+                # RESPONSE FORMAT
+                ---
+                The entire response MUST be a single, valid JSON object and nothing else. Do not include any pre-text, post-text, markdown, or code block delimiters outside of the JSON. The JSON keys and values must be exactly as specified below.
+                IMPORTANT: Include a "Confidence" field (number between 0 and 100) representing your confidence in the PASS/FAIL decision.
+                \`\`\`json
                 {
                 "status": "PASS" or "FAIL",
-                "summary": "Brief summary of the evaluation (1-2 sentences)",
-                "details": "Detailed explanation of the evaluation",
-                "suggestions": "Specific code suggestions for improvement if needed"
+                "Confidence": "number (0-100)"
+                "summary": "string",
+                "details": "string",
+                "suggestions": "string"
                 }
-
-                CRITICAL: The entire response MUST be a single, valid JSON object, and nothing else. Do not include any pre-text, post-text, or markdown.
+                \`\`\`
                 `;
-            console.log('Generated prompt:', promptText);
+            // console.log('Generated prompt:', promptText);
             return promptText;
         }
 
@@ -306,14 +336,19 @@
                 this.isAnalyzing = true;
                 const prompt = this.generatePrompt(elementData, this.currentRule);
                 console.log('Calling Gemini API...');
-                const rawResponse = await this.callGeminiAPI(prompt);
+                const {
+                    rawResponse,
+                    responseTime,
+                    tokenCount
+                } = await this.callGeminiAPI(prompt);
                 this.isAnalyzing = false;
-                console.log('Gemini raw response:', rawResponse);
+                console.log('Gemini API response received');
+                // console.log('Gemini raw response:', rawResponse);
                 let result;
                 const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
                 if (jsonMatch) {
                     let jsonString = jsonMatch[0];
-                    console.log('Extracted JSON string:', jsonString);
+                    // console.log('Extracted JSON string:', jsonString);
 
                     try {
                         result = JSON.parse(jsonString);
@@ -348,6 +383,14 @@
                     };
                 }
 
+                // Append metadata to the result object
+                result.metadata = {
+                    responseTime: responseTime,
+                    inputTokens: tokenCount.input,
+                    outputTokens: tokenCount.output,
+                };
+
+
                 return {
                     success: true,
                     ruleName: this.currentRule.name,
@@ -369,6 +412,7 @@
          */
         async callGeminiAPI(prompt) {
             try {
+                const startTime = performance.now();
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`;
 
                 const requestBody = {
@@ -377,21 +421,13 @@
                             text: prompt
                         }]
                     }],
-                    /**
-                     * why 0.2?
-                     *   Predictable outputs: Helpful for consistent JSON format compliance
-                     *   Reduced randomness: Avoids unexpected or irrelevant accessibility suggestions
-                     *   Focused responses: Model stays on-topic discussing only relevant accessibility issues
-                     */
                     generationConfig: {
-                        temperature: 1,
+                        temperature: 0.2,
                         maxOutputTokens: 2048,
                         topP: 0.8,
                         topK: 40
                     }
                 };
-
-                console.log('API Request Body:', JSON.stringify(requestBody, null, 2));
 
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -402,18 +438,30 @@
                     body: JSON.stringify(requestBody)
                 });
 
+                const endTime = performance.now();
+                const responseTime = (endTime - startTime).toFixed(2);
+
                 if (!response.ok) {
                     throw new Error(`API request failed with status ${response.status}: ${await response.text()}`);
                 }
 
                 const data = await response.json();
-                console.log('API Raw Data:', data);
 
                 if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0] || !data.candidates[0].content.parts[0].text) {
                     throw new Error('Unexpected API response format: missing candidate text.');
                 }
 
-                return data.candidates[0].content.parts[0].text;
+                // Extract token usage
+                const tokenCount = {
+                    input: data.usageMetadata?.promptTokenCount || 0,
+                    output: data.usageMetadata?.candidatesTokenCount || 0,
+                };
+
+                return {
+                    rawResponse: data.candidates[0].content.parts[0].text,
+                    responseTime: responseTime,
+                    tokenCount: tokenCount
+                };
             } catch (error) {
                 console.error('Gemini API call failed:', error);
                 throw new Error(`Gemini API call failed: ${error.message}`);
@@ -422,5 +470,3 @@
     }
     window.aiAnalyzer = new AIAnalyzer();
 })();
-
-

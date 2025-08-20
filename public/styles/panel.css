@@ -1820,7 +1820,18 @@ body:has(.dock-warning) .panel-container {
     border: 1px solid var(--gray-300);
     border-radius: 4px;
 }
+.ai-result-metadata {
+    background: var(--surface, #f5f5f5);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #333;
+    margin-top: 8px;
+}
 
+.ai-result-metadata p {
+    margin: 2px 0;
+}
 .ai-rule-selector-inline .ai-analyze-btn {
     height: 26px;
     padding: 0 8px;

@@ -530,7 +530,7 @@ function initializePanel() {
                 if (childHtmlSnippet) {
                     try {
                         if (message.payload.childHtml && message.payload.childHtml !== '-') {
-                            console.log('Updating child HTML snippet with:', message.payload.childHtml);
+                            // console.log('Updating child HTML snippet with:', message.payload.childHtml);
                             childHtmlSnippet.innerHTML = formatHtmlForDisplay(message.payload.childHtml);
                         } else {
                             childHtmlSnippet.textContent = '-';
@@ -2187,7 +2187,10 @@ function addSettingsStyles() {
 // Initialize AI-related features
 async function initializeAIFeatures() {
     // Load AI toggle preference from local storage - DEFAULT TO FALSE
-    const aiEnabled = localStorage.getItem('aiOptEnabled') === 'true'; // Default to false if not set
+    if (localStorage.getItem('aiOptEnabled') === null) {
+        localStorage.setItem('aiOptEnabled', 'true');
+    }
+    const aiEnabled = localStorage.getItem('aiOptEnabled') === 'true' // Default to false if not set
     const aiToggle = document.getElementById('aiOptToggle');
     const aiAnalysisSection = document.querySelector('.ai-analysis-section');
 
@@ -2383,30 +2386,42 @@ function initializeAIAnalysis() {
         aiAnalysisTitle.textContent = 'Analyzing...';
         aiAnalysisContent.innerHTML = '<p>AI is analyzing the element against the selected rule...</p>';
 
-        // Call AI analyzer with current element data
-        window.aiAnalyzer.analyzeElement(currentElementData)
-            .then(result => {
-                // Reset button
-                this.innerHTML = '<span>Analyze</span>';
-                this.disabled = false;
-
-                if (result.success) {
-                    // Show result
-                    aiAnalysisTitle.textContent = result.ruleName || 'AI Analysis';
-                    renderAIAnalysisResult(result.result, aiAnalysisContent);
+        // Fetch page source before running AI analysis
+        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+            if (!tabs[0]) {
+                analyzeWithAIBtn.innerHTML = '<span>Analyze</span>';
+                analyzeWithAIBtn.disabled = false;
+                aiAnalysisContent.innerHTML = `<p style="color: #d93025;">Error: No active tab found.</p>`;
+                return;
+            }
+            chrome.tabs.sendMessage(tabs[0].id, { action: 'GET_PAGE_SOURCE' }, function (response) {
+                if (response && response.html) {
+                    currentElementData.pageSource = response.html;
                 } else {
-                    // Show error
-                    aiAnalysisContent.innerHTML = `<p style="color: #d93025;">Error: ${result.error}</p>`;
+                    currentElementData.pageSource = '-';
                 }
-            })
-            .catch(error => {
-                // Reset button and show error
-                this.innerHTML = '<span>Analyze</span>';
-                this.disabled = false;
 
-                aiAnalysisContent.innerHTML = `<p style="color: #d93025;">Error: ${error.message || 'Unknown error'}</p>`;
-                console.error('AI analysis error:', error);
+                window.aiAnalyzer.analyzeElement(currentElementData)
+                    .then(result => {
+                        // Reset button
+                        analyzeWithAIBtn.innerHTML = '<span>Analyze</span>';
+                        analyzeWithAIBtn.disabled = false;
+
+                        if (result.success) {
+                            aiAnalysisTitle.textContent = result.ruleName || 'AI Analysis';
+                            renderAIAnalysisResult(result.result, aiAnalysisContent);
+                        } else {
+                            aiAnalysisContent.innerHTML = `<p style="color: #d93025;">Error: ${result.error}</p>`;
+                        }
+                    })
+                    .catch(error => {
+                        analyzeWithAIBtn.innerHTML = '<span>Analyze</span>';
+                        analyzeWithAIBtn.disabled = false;
+                        aiAnalysisContent.innerHTML = `<p style="color: #d93025;">Error: ${error.message || 'Unknown error'}</p>`;
+                        console.error('AI analysis error:', error);
+                    });
             });
+        });
     });
 }
 
@@ -2717,6 +2732,26 @@ function updateCurrentElementData(details) {
     if (ruleSelect && analyzeButton) {
         analyzeButton.disabled = !ruleSelect.value;
     }
+}
+
+function fetchPageSourceAndSendToAI() {
+    chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        if (!tabs[0]) return;
+        chrome.tabs.sendMessage(tabs[0].id, { action: 'GET_PAGE_SOURCE' }, function (response) {
+            if (response && response.html) {
+                // Add page source to currentElementData
+                currentElementData.pageSource = response.html;
+
+                // Now send currentElementData to AI analyzer
+                if (window.aiAnalyzer) {
+                    window.aiAnalyzer.analyzeElement(currentElementData)
+                        .then(result => {
+                            // handle result (update UI, etc.)
+                        });
+                }
+            }
+        });
+    });
 }
 
 function getInteractiveElements() {

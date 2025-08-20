@@ -5,30 +5,31 @@
     // Wait for DOM to be ready
     document.addEventListener('DOMContentLoaded', function () {
         initializeAIUIHandlers();
-        initializeSettingsMenu(); // Add settings menu initialization
+        initializeSettingsMenu();
     });
 
-    // Define the global renderer function that panel.js will use
     window.renderAIAnalysisResult = function (result, container) {
-        if (!result) {
+        if (!result || !result.result) {
             container.innerHTML = '<p style="color: #d93025;">Analysis failed: No result data received.</p>';
             return;
         }
 
-        const statusClass = result.status && result.status.toLowerCase() === 'pass' ? 'pass' : 'fail';
-        const statusText = result.status || 'N/A';
-        const summaryText = result.summary || 'No summary provided.';
-        const detailsText = result.details || 'No detailed explanation provided.';
-        const suggestionsText = result.suggestions || 'No suggestions provided.';
+        const aiResult = result.result;
 
-        // Clear the container first
+        // Correctly handle the confidence value, which is a number
+        const confidenceValue = aiResult.Confidence ?? null;
+
+        const statusClass = aiResult.status && aiResult.status.toLowerCase() === 'pass' ? 'pass' : 'fail';
+        const statusText = aiResult.status || 'N/A';
+        const summaryText = aiResult.summary || 'No summary provided.';
+        const detailsText = aiResult.details || 'No detailed explanation provided.';
+        const suggestionsText = aiResult.suggestions || 'No suggestions provided.';
+
         container.innerHTML = '';
 
-        // Create result elements
         const resultDiv = document.createElement('div');
         resultDiv.className = 'ai-result';
 
-        // Create header with click handler
         const headerDiv = document.createElement('div');
         headerDiv.className = 'ai-result-header';
 
@@ -46,7 +47,17 @@
         headerDiv.appendChild(statusSpan);
         headerDiv.appendChild(summaryDiv);
 
-        // Create content section that will be scrollable
+        // Show confidence if present and valid
+        if (confidenceValue !== null && !isNaN(confidenceValue)) {
+            const confidenceDiv = document.createElement('div');
+            confidenceDiv.className = 'ai-result-confidence';
+            const confidenceStrong = document.createElement('strong');
+            confidenceStrong.textContent = 'Confidence: ';
+            confidenceDiv.appendChild(confidenceStrong);
+            confidenceDiv.appendChild(document.createTextNode(`${confidenceValue}%`));
+            headerDiv.appendChild(confidenceDiv);
+        }
+
         const contentDiv = document.createElement('div');
         contentDiv.className = 'ai-result-content';
 
@@ -67,37 +78,53 @@
         contentDiv.appendChild(detailsDiv);
         contentDiv.appendChild(suggestionsDiv);
 
-        // Add toggle functionality for the content area
-        headerDiv.addEventListener('click', function () {
-            this.classList.toggle('collapsed');
-            // No need to toggle the content div visibility as we're using CSS for that
-        });
-
         resultDiv.appendChild(headerDiv);
         resultDiv.appendChild(contentDiv);
         container.appendChild(resultDiv);
 
-        // Auto-expand the AI panel and collapse status buttons
+        // Add metadata section (check aiResult.metadata, result.metadata, or top-level keys)
+        let metadata = aiResult.metadata || result.metadata;
+        // If not found, check if metadata keys exist directly on aiResult
+        if (!metadata && (
+            aiResult.responseTime !== undefined ||
+            aiResult.inputTokens !== undefined ||
+            aiResult.outputTokens !== undefined
+        )) {
+            metadata = {
+                responseTime: aiResult.responseTime,
+                inputTokens: aiResult.inputTokens,
+                outputTokens: aiResult.outputTokens
+            };
+        }
+        if (metadata && (metadata.responseTime !== undefined || metadata.inputTokens !== undefined || metadata.outputTokens !== undefined)) {
+            const metadataDiv = document.createElement('div');
+            metadataDiv.className = 'ai-result-metadata';
+
+            const metadataContent = `
+                <p><strong>Response Time:</strong> ${metadata.responseTime ?? 'N/A'} ms</p>
+                <p><strong>Input Tokens:</strong> ${metadata.inputTokens ?? 'N/A'}</p>
+                <p><strong>Output Tokens:</strong> ${metadata.outputTokens ?? 'N/A'}</p>
+            `;
+
+            metadataDiv.innerHTML = metadataContent;
+            container.appendChild(metadataDiv);
+        }
+
         const aiAnalysisPanel = document.getElementById('aiAnalysisPanel');
         const statusButtonsSection = document.getElementById('statusButtonsSection');
 
         if (aiAnalysisPanel && statusButtonsSection) {
-            // Expand AI panel and collapse status buttons
             expandCollapseManager.expandSection('aiAnalysisPanel');
-
-            // Scroll to the AI analysis panel to ensure it's visible
             setTimeout(function () {
                 contentDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 100);
         }
     };
 
-    // Manager to handle exclusive expand/collapse behavior
     const expandCollapseManager = {
         sections: ['statusButtonsSection', 'aiAnalysisPanel'],
 
         expandSection: function (sectionId) {
-            // Collapse all sections first
             this.sections.forEach(id => {
                 const section = document.getElementById(id);
                 if (section && id !== sectionId) {
@@ -105,31 +132,24 @@
                 }
             });
 
-            // Then expand the requested section
             const sectionToExpand = document.getElementById(sectionId);
             if (sectionToExpand) {
                 sectionToExpand.classList.remove('collapsed');
                 sectionToExpand.style.display = 'block';
 
-                // Ensure content area is properly visible when expanded
                 const contentArea = sectionToExpand.querySelector('.collapsible-content');
                 if (contentArea) {
-                    // Reset scroll position when expanding
                     contentArea.scrollTop = 0;
-
-                    // Ensure any special elements are visible
                     if (sectionId === 'statusButtonsSection') {
                         const commentsField = document.querySelector('.comments-field');
                         if (commentsField) {
-                            // Wait a bit for layout to update
                             setTimeout(() => {
-                                // Make sure comments are visible by scrolling content area if needed
                                 const contentRect = contentArea.getBoundingClientRect();
                                 const commentsRect = commentsField.getBoundingClientRect();
 
                                 if (commentsRect.bottom > contentRect.bottom) {
                                     contentArea.scrollBy({
-                                        top: commentsRect.bottom - contentRect.bottom + 20, // Extra 20px padding
+                                        top: commentsRect.bottom - contentRect.bottom + 20,
                                         behavior: 'smooth'
                                     });
                                 }
@@ -142,29 +162,23 @@
     };
 
     function initializeAIUIHandlers() {
-        // Setup for AI analysis panel collapse/expand
         const aiAnalysisPanel = document.getElementById('aiAnalysisPanel');
         const aiAnalysisHeader = document.getElementById('aiAnalysisHeader');
         const aiCollapseBtn = document.getElementById('aiCollapseBtn');
 
-        // Setup for status buttons section collapse/expand
         const statusButtonsSection = document.getElementById('statusButtonsSection');
         const statusButtonsHeader = document.getElementById('statusButtonsHeader');
         const statusCollapseBtn = document.getElementById('statusCollapseBtn');
 
         if (aiAnalysisHeader && aiAnalysisPanel) {
             aiAnalysisHeader.addEventListener('click', function (e) {
-                // Don't collapse when clicking on the select or analyze button
                 if (e.target.closest('.ai-rule-selector-inline') ||
                     e.target.closest('#analyzeWithAI')) {
                     return;
                 }
-
-                // If it's already collapsed, expand it and collapse the other
                 if (aiAnalysisPanel.classList.contains('collapsed')) {
                     expandCollapseManager.expandSection('aiAnalysisPanel');
                 } else {
-                    // If it's expanded, just collapse it
                     aiAnalysisPanel.classList.add('collapsed');
                 }
             });
@@ -172,13 +186,10 @@
 
         if (aiCollapseBtn) {
             aiCollapseBtn.addEventListener('click', function (e) {
-                e.stopPropagation(); // Prevent triggering the header click
-
-                // If it's expanded, collapse it
+                e.stopPropagation();
                 if (!aiAnalysisPanel.classList.contains('collapsed')) {
                     aiAnalysisPanel.classList.add('collapsed');
                 } else {
-                    // If it's collapsed, expand it and collapse the other
                     expandCollapseManager.expandSection('aiAnalysisPanel');
                 }
             });
@@ -186,16 +197,12 @@
 
         if (statusButtonsHeader && statusButtonsSection) {
             statusButtonsHeader.addEventListener('click', function (e) {
-                // Don't collapse when clicking navigation buttons
                 if (e.target.closest('.controls-header-buttons')) {
                     return;
                 }
-
-                // If it's already collapsed, expand it and collapse the other
                 if (statusButtonsSection.classList.contains('collapsed')) {
                     expandCollapseManager.expandSection('statusButtonsSection');
                 } else {
-                    // If it's expanded, just collapse it
                     statusButtonsSection.classList.add('collapsed');
                 }
             });
@@ -203,30 +210,23 @@
 
         if (statusCollapseBtn) {
             statusCollapseBtn.addEventListener('click', function (e) {
-                e.stopPropagation(); // Prevent triggering the header click
-
-                // If it's expanded, collapse it
+                e.stopPropagation();
                 if (!statusButtonsSection.classList.contains('collapsed')) {
                     statusButtonsSection.classList.add('collapsed');
                 } else {
-                    // If it's collapsed, expand it and collapse the other
                     expandCollapseManager.expandSection('statusButtonsSection');
                 }
             });
         }
 
-        // Initialize AI panel behaviors
         function initializeAIPanel() {
             const analyzeWithAI = document.getElementById('analyzeWithAI');
             const accessibilityRuleSelect = document.getElementById('accessibilityRuleSelect');
 
-            // Make sure AI panel is visible when clicking analyze
             if (analyzeWithAI) {
                 analyzeWithAI.addEventListener('click', function (e) {
-                    e.stopPropagation(); // Prevent collapsing the AI panel
-                    // Expand AI panel and collapse status section
+                    e.stopPropagation();
                     expandCollapseManager.expandSection('aiAnalysisPanel');
-                    // Scroll to make the AI panel visible
                     if (aiAnalysisPanel) {
                         setTimeout(function () {
                             aiAnalysisPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -235,11 +235,9 @@
                 });
             }
 
-            // Update button state based on selection
             if (accessibilityRuleSelect) {
                 accessibilityRuleSelect.addEventListener('change', function (e) {
-                    e.stopPropagation(); // Prevent collapsing the AI panel
-
+                    e.stopPropagation();
                     if (analyzeWithAI) {
                         analyzeWithAI.disabled = !this.value;
                     }
@@ -247,20 +245,15 @@
             }
         }
 
-        // Initialize AI panel behaviors
         initializeAIPanel();
 
-        // Ensure status section is expanded by default
         setTimeout(() => {
             expandCollapseManager.expandSection('statusButtonsSection');
-            // Make sure comments field is visible by default
             const statusContent = document.getElementById('statusButtonsContent');
             const commentsField = document.querySelector('.comments-field');
-
             if (statusContent && commentsField) {
                 const statusContentRect = statusContent.getBoundingClientRect();
                 const commentsRect = commentsField.getBoundingClientRect();
-
                 if (commentsRect.bottom > statusContentRect.bottom) {
                     statusContent.scrollBy({
                         top: commentsRect.bottom - statusContentRect.bottom + 20,
@@ -268,14 +261,9 @@
                     });
                 }
             }
-            // Slightly longer delay to ensure DOM is ready
         }, 200);
     }
 
-    /**
-     * Initialize settings menu toggle functionality
-     * Moved from inline script in panel.html to comply with CSP
-     */
     function initializeSettingsMenu() {
         const settingsMenuButton = document.getElementById('settingsMenuButton');
         const settingsMenu = document.getElementById('settingsMenu');
@@ -285,15 +273,12 @@
             return;
         }
 
-        // Toggle settings menu when settings button is clicked
         settingsMenuButton.addEventListener('click', function (e) {
-            e.stopPropagation(); // Prevent event from bubbling to document
+            e.stopPropagation();
             settingsMenu.classList.toggle('visible');
         });
 
-        // Close settings menu when clicking outside
         document.addEventListener('click', function (e) {
-            // Check if click is outside the settings menu and the menu is visible
             if (settingsMenu.classList.contains('visible') &&
                 !settingsMenu.contains(e.target) &&
                 e.target !== settingsMenuButton) {
@@ -301,7 +286,6 @@
             }
         });
 
-        // Prevent clicks within the menu from closing it
         settingsMenu.addEventListener('click', function (e) {
             e.stopPropagation();
         });

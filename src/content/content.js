@@ -29,6 +29,12 @@ console.log('Node Validator Content Script loaded');
     chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
         console.log('Content script received message:', message.action);
 
+        if (message.action === 'GET_PAGE_SOURCE') {
+            const pageSource = document.documentElement.outerHTML;
+            sendResponse({ html: pageSource });
+            return true;
+        }
+
         if (message.action === 'CLEAR_HIGHLIGHTS') {
             // Clear content script highlights
             clearHighlights();
