@@ -2734,27 +2734,51 @@ function getInteractiveElements() {
 function highlightInteractiveElements() {
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
         if (!tabs[0]) return;
-        // Step 1: Clear ALL highlights (both content script and interactive) in ALL frames
         chrome.tabs.sendMessage(tabs[0].id, { action: 'CLEAR_HIGHLIGHTS' }, function () {
-            // Step 2: Highlight interactive elements in ALL frames
             chrome.scripting.executeScript({
                 target: { tabId: tabs[0].id, allFrames: true },
                 func: () => {
                     const selectors = [
-                        'button', 'a[href]', 'input:not([type="hidden"])', 'select', 'textarea',
-                        '[tabindex]:not([tabindex="-1"])', '[role="button"]', '[role="link"]', '[role="checkbox"]',
-                        '[role="switch"]', '[role="menuitem"]', '[contenteditable="true"]'
+                        'button',
+                        'a[href]',
+                        'input:not([type="hidden"])',
+                        'select',
+                        'textarea',
+                        '[tabindex]:not([tabindex="-1"])',
+                        '[role="button"]',
+                        '[role="link"]',
+                        '[role="checkbox"]',
+                        '[role="switch"]',
+                        '[role="menuitem"]',
+                        '[role="option"]',
+                        '[role="radio"]',
+                        '[role="tab"]',
+                        '[role="treeitem"]',
+                        '[role="slider"]',
+                        '[role="spinbutton"]',
+                        '[role="combobox"]',
+                        '[contenteditable="true"]'
                     ];
+
+                    const isVisible = (el) => {
+                        const style = window.getComputedStyle(el);
+                        return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+                    };
+
                     const elements = Array.from(document.querySelectorAll(selectors.join(',')))
-                        .filter(el => !el.disabled && el.offsetParent !== null);
+                        .filter(el => !el.disabled && isVisible(el));
+
                     elements.forEach(el => {
                         el.classList.add('nv-interactive-highlight');
                         el.style.outline = '4px solid #db4437';
                         el.style.outlineOffset = '2px';
                     });
+
+                    // Update this line to prevent scrolling
                     if (elements.length > 0) {
-                        elements[0].focus();
+                        elements[0].focus({ preventScroll: true });
                     }
+
                     setTimeout(() => {
                         elements.forEach(el => {
                             el.classList.remove('nv-interactive-highlight');
@@ -2778,11 +2802,11 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Button click handler
 document.getElementById('runInteractiveCheck')?.addEventListener('click', function () {
     showNotification('Highlighting all interactive/focusable elements...', 'info');
     highlightInteractiveElements();
 });
+
 // Extend the existing message listener to update element data for AI analysis
 chrome.runtime.onMessage.addListener(function (message) {
     // This is the code you want to add
