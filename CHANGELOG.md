@@ -1,3 +1,6 @@
+## [1.2.1] - 2025-08-25
+- initigrate clarity
+
 ## [1.2.0] - 2025-08-20
 - new AI changes v2
 
