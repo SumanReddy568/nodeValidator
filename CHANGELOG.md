@@ -1,3 +1,6 @@
+## [1.2.2] - 2025-08-26
+- adding rember check
+
 ## [1.2.1] - 2025-08-25
 - initigrate clarity
 
