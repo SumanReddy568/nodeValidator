@@ -209,6 +209,19 @@ function initializePanel() {
     let validationStopped = false; // Track if validation was stopped
     let currentStartIndex = 0; // Track the current start index // Add flag to prevent double-clicking Next URL button
 
+    // Track last status
+    let lastSelectedStatus = null;
+
+    // Add event listener for Remember Last Status checkbox
+    const rememberLastStatusCheckbox = document.getElementById('rememberLastStatus');
+    if (rememberLastStatusCheckbox) {
+        rememberLastStatusCheckbox.addEventListener('change', function () {
+            localStorage.setItem('rememberLastStatus', this.checked ? 'true' : 'false');
+        });
+        // Restore state on load
+        rememberLastStatusCheckbox.checked = localStorage.getItem('rememberLastStatus') === 'true';
+    }
+
     // Helper to get filtered data based on currentStartIndex
     function getActiveValidationData() {
         return validationData.slice(currentStartIndex);
@@ -229,6 +242,10 @@ function initializePanel() {
                     // Select this button
                     button.classList.add('selected');
                     selectedStatus = statusButtons[buttonId];
+
+                    // Remember last selected status
+                    lastSelectedStatus = statusButtons[buttonId];
+                    localStorage.setItem('lastSelectedStatus', lastSelectedStatus);
 
                     // If Skip is selected, automatically add a comment
                     if (buttonId === 'statusSkip' && statusNotes) {
@@ -342,6 +359,25 @@ function initializePanel() {
 
                 // Refresh copy buttons after updating content
                 setTimeout(setupCopyButtons, 0);
+
+                // After updating node info, auto-select last status if enabled
+                if (
+                    rememberLastStatusCheckbox &&
+                    rememberLastStatusCheckbox.checked &&
+                    localStorage.getItem('lastSelectedStatus')
+                ) {
+                    const lastStatus = localStorage.getItem('lastSelectedStatus');
+                    Object.entries(statusButtons).forEach(([buttonId, statusValue]) => {
+                        const button = document.getElementById(buttonId);
+                        if (button) {
+                            button.classList.remove('selected');
+                            if (statusValue === lastStatus) {
+                                button.classList.add('selected');
+                                selectedStatus = statusValue;
+                            }
+                        }
+                    });
+                }
             } else {
                 if (currentUrlEl) currentUrlEl.textContent = '-';
                 if (selectorCodeEl) selectorCodeEl.textContent = '-';
