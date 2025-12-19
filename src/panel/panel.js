@@ -194,6 +194,12 @@ function initializePanel() {
     const currentSelector = document.getElementById('currentSelector');
     const statusNotes = document.getElementById('statusNotes');
     const nextUrlBtn = document.getElementById('nextUrl');
+    
+    // Initially disable Next URL button until validation starts
+    if (nextUrlBtn) {
+        nextUrlBtn.disabled = true;
+        nextUrlBtn.title = 'Start validation to enable this button';
+    }
 
     const statusButtons = {
         statusTruePositive: 'True Positive',
@@ -325,9 +331,6 @@ function initializePanel() {
             status: statusButtons[statusBtnId]
         };
 
-        // Always use filtered data for summary UI updates
-        const activeData = updatedData.slice(currentStartIndex);
-
         // Store the temp status selection in the local storage to persist it
         chrome.storage.local.set({
             tempStatusSelection: {
@@ -337,7 +340,8 @@ function initializePanel() {
             }
         });
 
-        updateSummaryUI(generateSummary(activeData));
+        // Always use ALL data for summary stats (not filtered)
+        updateSummaryUI(generateSummary(updatedData));
     }
 
     // More robust function to display the current validation info
@@ -346,22 +350,55 @@ function initializePanel() {
             const currentUrlEl = document.getElementById('currentUrl');
             const selectorCodeEl = document.getElementById('selectorCode');
 
+            console.log('updateCurrentValidation called - currentIndex:', currentIndex, 'validationData:', validationData);
+
             if (validationData && validationData[currentIndex]) {
                 const currentData = validationData[currentIndex];
+                console.log('Current data:', currentData);
 
                 if (currentUrlEl) {
                     currentUrlEl.textContent = currentData.url || '-';
+                    console.log('Set URL to:', currentData.url);
                 }
 
                 if (selectorCodeEl) {
                     selectorCodeEl.textContent = currentData.targetNode || '-';
+                    console.log('Set selector to:', currentData.targetNode);
                 }
 
                 // Refresh copy buttons after updating content
                 setTimeout(setupCopyButtons, 0);
 
-                // After updating node info, auto-select last status if enabled
-                if (
+                // Check if this item already has a status (e.g., manually logged FN)
+                if (currentData.status) {
+                    console.log('Current item has existing status:', currentData.status);
+                    
+                    // If it's a False Negative (manually logged), auto-select the FN button
+                    if (currentData.status === 'False Negative') {
+                        console.log('Auto-selecting False Negative button for manually logged FN');
+                        Object.entries(statusButtons).forEach(([buttonId, statusValue]) => {
+                            const button = document.getElementById(buttonId);
+                            if (button) {
+                                button.classList.remove('selected');
+                                if (statusValue === 'False Negative') {
+                                    button.classList.add('selected');
+                                    selectedStatus = statusValue;
+                                    
+                                    // Also populate the notes field if there's a comment
+                                    if (statusNotes && currentData.comments) {
+                                        statusNotes.value = currentData.comments;
+                                    }
+                                }
+                            }
+                        });
+                    }
+                    // For other statuses, show them but don't auto-select (allow user to change)
+                    else {
+                        console.log('Item has status:', currentData.status, '- not auto-selecting');
+                    }
+                }
+                // After updating node info, auto-select last status if enabled (only if no existing status)
+                else if (
                     rememberLastStatusCheckbox &&
                     rememberLastStatusCheckbox.checked &&
                     localStorage.getItem('lastSelectedStatus')
@@ -641,14 +678,14 @@ function initializePanel() {
                             updateCurrentValidation();
                         }
 
-                        // Update the UI with filtered data
-                        const activeData = getActiveValidationData();
-                        updateSummaryUI(generateSummary(activeData));
+                        // Update the UI - summary should show ALL data
+                        updateSummaryUI(generateSummary(validationData));
 
                         // Show notification for automated updates
                         if (message.automated) {
                             handleAutomationUpdate(message);
                             // Use filtered progress for UI
+                            const activeData = getActiveValidationData();
                             const localIndex = currentIndex - currentStartIndex;
                             updateProgressUI(localIndex + 1, activeData.length);
                         }
@@ -668,9 +705,9 @@ function initializePanel() {
                         validationData = data.validationData;
                         currentIndex = data.currentIndex || validationData.length;
 
-                        // Use filtered data for summary and progress
+                        // Summary should show ALL data, progress shows filtered
+                        updateSummaryUI(generateSummary(validationData));
                         const activeData = getActiveValidationData();
-                        updateSummaryUI(generateSummary(activeData));
                         updateProgressUI(activeData.length, activeData.length);
                     }
 
@@ -687,6 +724,13 @@ function initializePanel() {
 
                     if (nextUrlBtn) {
                         nextUrlBtn.disabled = true;
+                        nextUrlBtn.title = 'Start validation to enable this button';
+                    }
+
+                    // Disable Log False Negative button when validation is complete
+                    if (logFalseNegativeBtn) {
+                        logFalseNegativeBtn.disabled = true;
+                        logFalseNegativeBtn.title = 'Start validation to enable this feature';
                     }
 
                     // Hide the resume button since validation is complete
@@ -749,6 +793,100 @@ function initializePanel() {
                         }
                     }
                 }
+            } else if (message.action === 'ELEMENT_SELECTED_FOR_FN') {
+                // Handle element selected for False Negative logging
+                const { url, selector } = message.payload;
+                
+                console.log('=== ELEMENT_SELECTED_FOR_FN ===');
+                console.log('Received URL:', url);
+                console.log('Received selector:', selector);
+                
+                // Validate that we have a URL
+                if (!url) {
+                    console.error('ERROR: No URL provided in payload!');
+                    showNotification('Error: Could not capture page URL', 'error');
+                    return;
+                }
+                
+                showNotification('Element selected! Adding to validation list...', 'success', 2000);
+                
+                // First, get the latest validation data from storage to ensure we have the most up-to-date state
+                chrome.storage.local.get(['validationData', 'currentIndex'], function (data) {
+                    // Use the data from storage if available, otherwise use local state
+                    let latestValidationData = Array.isArray(data.validationData) ? data.validationData : validationData;
+                    
+                    console.log('=== BEFORE ADDING FN ===');
+                    console.log('Current validation data length:', latestValidationData.length);
+                    console.log('Current validation data:', JSON.parse(JSON.stringify(latestValidationData)));
+                    
+                    // Add the new entry to validation data - ensure URL is properly set
+                    const newEntry = {
+                        url: url || '',  // Ensure URL is never undefined
+                        targetNode: selector || '',
+                        status: 'False Negative',
+                        comments: 'Manually logged as False Negative'
+                    };
+                    
+                    console.log('New FN entry to add:', JSON.stringify(newEntry, null, 2));
+                    latestValidationData.push(newEntry);
+                    
+                    // Update local variable
+                    validationData = latestValidationData;
+                    
+                    // Don't change currentIndex - keep the user where they were
+                    // This prevents overwriting the current item's data
+                    const newItemIndex = validationData.length - 1;
+                    
+                    console.log('=== AFTER ADDING FN ===');
+                    console.log('Updated validation data length:', validationData.length);
+                    console.log('Current index (unchanged):', currentIndex);
+                    console.log('New item index:', newItemIndex);
+                    console.log('All validation data:', JSON.parse(JSON.stringify(validationData)));
+                    
+                    // Update storage with the new data
+                    // IMPORTANT: Don't update currentIndex here to avoid confusion
+                    chrome.storage.local.set({ 
+                        validationData: validationData
+                        // Note: NOT updating currentIndex to keep user at their current position
+                    }, function () {
+                        console.log('Storage updated successfully');
+                        
+                        // Update UI - show summary section if not already visible
+                        if (summarySection && summarySection.style.display === 'none') {
+                            setUISection('summary');
+                        }
+                        
+                        // Update summary with ALL validation data (not filtered)
+                        updateSummaryUI(generateSummary(validationData));
+                        
+                        // Update total index count
+                        if (totalIndexCountEl) {
+                            totalIndexCountEl.textContent = validationData.length - 1;
+                        }
+                        if (startIndexInput) {
+                            startIndexInput.max = validationData.length - 1;
+                        }
+                        
+                        // Keep showing the current validation item (don't jump to the new FN)
+                        // This ensures the user can continue validating without disruption
+                        updateCurrentValidation();
+                        
+                        // Update progress to reflect the increased total count
+                        const activeData = getActiveValidationData();
+                        const localIndex = currentIndex - currentStartIndex;
+                        updateProgressUI(localIndex + 1, activeData.length);
+                        
+                        // Show success notification
+                        showNotification(`False Negative logged successfully! Total items: ${validationData.length}. Continue validating.`, 'success', 3000);
+                        
+                        // Enable export button if disabled
+                        if (exportResultsBtn) {
+                            exportResultsBtn.disabled = false;
+                        }
+                    });
+                });
+            } else if (message.action === 'ELEMENT_SELECTION_CANCELLED') {
+                showNotification('Element selection cancelled', 'info', 2000);
             }
             // Add a DEBUG message type for troubleshooting
             else if (message.action === 'DEBUG') {
@@ -813,6 +951,10 @@ function initializePanel() {
                 return;
             }
 
+            console.log('=== START VALIDATION CLICKED ===');
+            console.log('validationData length:', validationData.length);
+            console.log('validationData:', JSON.parse(JSON.stringify(validationData)));
+
             // Get starting index from input
             const startFromIndex = parseInt(startIndexInput.value, 10) || 0;
 
@@ -870,10 +1012,11 @@ function initializePanel() {
                 stopValidationBtn.disabled = false;
             }
 
-            // Make sure next button is properly enabled for manual mode
+            // Make sure next button is properly enabled for manual mode, disabled for automated
             if (nextUrlBtn) {
                 nextUrlBtn.disabled = automatedMode;
                 nextUrlBtn.textContent = 'Next URL';
+                nextUrlBtn.title = automatedMode ? 'Not available in automated mode' : 'Mark status and move to next URL';
             }
 
             // Show mode notification
@@ -898,6 +1041,12 @@ function initializePanel() {
                     setUISection('summary');
                     setupStatusButtons();
                     updateCurrentValidation();
+
+                    // Enable Log False Negative button during validation
+                    if (logFalseNegativeBtn) {
+                        logFalseNegativeBtn.disabled = false;
+                        logFalseNegativeBtn.title = 'Log an additional false negative from the current page';
+                    }
 
                     // In manual mode, enable Next URL button. In automated mode, disable it
                     if (nextUrlBtn) nextUrlBtn.disabled = automatedMode;
@@ -998,8 +1147,8 @@ function initializePanel() {
                     // This is crucial to show correct progress when resuming
                     const relativePosition = Math.max(0, currentIndex - currentStartIndex);
 
-                    // Update UI before starting validation
-                    updateSummaryUI(generateSummary(activeData));
+                    // Update UI before starting validation - summary uses ALL data
+                    updateSummaryUI(generateSummary(validationData));
                     updateProgressUI(relativePosition, activeData.length);
 
                     // Now call start validation
@@ -1028,8 +1177,17 @@ function initializePanel() {
                                 setupStatusButtons();
                                 updateCurrentValidation();
 
+                                // Enable Log False Negative button when resuming validation
+                                if (logFalseNegativeBtn) {
+                                    logFalseNegativeBtn.disabled = false;
+                                    logFalseNegativeBtn.title = 'Log an additional false negative from the current page';
+                                }
+
                                 // In manual mode, enable Next URL button. In automated mode, disable it
-                                if (nextUrlBtn) nextUrlBtn.disabled = automatedMode;
+                                if (nextUrlBtn) {
+                                    nextUrlBtn.disabled = automatedMode;
+                                    nextUrlBtn.title = automatedMode ? 'Not available in automated mode' : 'Mark status and move to next URL';
+                                }
 
                                 // Reset stop button
                                 if (stopValidationBtn) {
@@ -1087,6 +1245,18 @@ function initializePanel() {
                     startValidationBtn.disabled = false;
                 }
 
+                // Disable Next URL button when validation is stopped
+                if (nextUrlBtn) {
+                    nextUrlBtn.disabled = true;
+                    nextUrlBtn.title = 'Start validation to enable this button';
+                }
+
+                // Disable Log False Negative button when validation is stopped
+                if (logFalseNegativeBtn) {
+                    logFalseNegativeBtn.disabled = true;
+                    logFalseNegativeBtn.title = 'Start validation to enable this feature';
+                }
+
                 // Show resume button
                 if (resumeValidationBtn) {
                     resumeValidationBtn.style.display = 'inline-block';
@@ -1110,7 +1280,10 @@ function initializePanel() {
     // Update the Next URL button handler with improved error handling
     if (nextUrlBtn) {
         nextUrlBtn.onclick = function () {
-            console.log('Next URL button clicked, selected status:', selectedStatus);
+            console.log('=== NEXT URL BUTTON CLICKED ===');
+            console.log('Current index:', currentIndex);
+            console.log('Selected status:', selectedStatus);
+            console.log('Current item:', validationData[currentIndex]);
 
             // Prevent multiple clicks
             if (processingNextUrl) {
@@ -1129,46 +1302,71 @@ function initializePanel() {
             nextUrlBtn.textContent = 'Updating...';
 
             const comments = statusNotes ? statusNotes.value || '' : '';
+            const statusToSave = selectedStatus;
+            const indexToUpdate = currentIndex;
 
-            // First, update local state
-            if (validationData[currentIndex]) {
-                validationData[currentIndex].status = selectedStatus;
-                validationData[currentIndex].comments = comments;
+            console.log('Saving - Index:', indexToUpdate, 'Status:', statusToSave, 'Comments:', comments);
 
-                // Also update the storage with the new filterStartIndex for persistence
-                chrome.storage.local.set({
-                    filterStartIndex: currentStartIndex
-                });
+            // First, update local state immediately
+            if (validationData[indexToUpdate]) {
+                validationData[indexToUpdate].status = statusToSave;
+                validationData[indexToUpdate].comments = comments;
+                console.log('Local state updated:', validationData[indexToUpdate]);
             }
 
-            // Then send message to background
+            // Then send message to background to persist the change
             chrome.runtime.sendMessage({
                 action: 'UPDATE_STATUS',
                 payload: {
-                    index: currentIndex,
-                    status: selectedStatus,
+                    index: indexToUpdate,
+                    status: statusToSave,
                     comments: comments
                 }
             }, function (response) {
-                console.log('Update status response:', response);
+                console.log('=== UPDATE_STATUS RESPONSE ===');
+                console.log('Response:', response);
 
                 if (response && response.success) {
-                    showNotification(`Status marked as ${selectedStatus}`, 'success');
+                    // Wait a moment to ensure storage is updated before proceeding
+                    setTimeout(function () {
+                        // Verify the update was saved by checking storage
+                        chrome.storage.local.get(['validationData'], function (data) {
+                            if (data.validationData && data.validationData[indexToUpdate]) {
+                                console.log('Verified saved data:', data.validationData[indexToUpdate]);
+                                
+                                // Update local copy with the saved data to ensure sync
+                                validationData = data.validationData;
+                                
+                                showNotification(`Status marked as ${statusToSave}`, 'success');
 
-                    // Reset status selection
-                    selectedStatus = null;
-                    if (statusNotes) statusNotes.value = '';
+                                // Reset status selection
+                                selectedStatus = null;
+                                if (statusNotes) statusNotes.value = '';
 
-                    // Reset button states
-                    Object.keys(statusButtons).forEach(id => {
-                        const btn = document.getElementById(id);
-                        if (btn) {
-                            btn.classList.remove('selected');
-                        }
-                    });
+                                // Reset button states
+                                Object.keys(statusButtons).forEach(id => {
+                                    const btn = document.getElementById(id);
+                                    if (btn) {
+                                        btn.classList.remove('selected');
+                                    }
+                                });
 
-                    // Move to next URL
-                    moveToNextUrl();
+                                // Also save the filterStartIndex for persistence
+                                chrome.storage.local.set({
+                                    filterStartIndex: currentStartIndex
+                                }, function () {
+                                    // Move to next URL after everything is saved
+                                    moveToNextUrl();
+                                });
+                            } else {
+                                console.error('Failed to verify saved data');
+                                showNotification('Error verifying save', 'error');
+                                processingNextUrl = false;
+                                nextUrlBtn.disabled = false;
+                                nextUrlBtn.textContent = 'Next URL';
+                            }
+                        });
+                    }, 100); // Small delay to ensure storage write completes
                 } else {
                     processingNextUrl = false;
                     nextUrlBtn.disabled = false;
@@ -1220,7 +1418,8 @@ function initializePanel() {
             // Update progress UI with the complete count
             const totalProcessed = validationData.length - currentStartIndex;
             updateProgressUI(totalProcessed, totalProcessed);
-            updateSummaryUI(generateSummary(activeData));
+            // Update summary with ALL data, not just filtered
+            updateSummaryUI(generateSummary(validationData));
 
             if (exportResultsBtn) {
                 exportResultsBtn.disabled = !hasResults(activeData);
@@ -1255,11 +1454,11 @@ function initializePanel() {
                         // Explicitly update current validation display
                         updateCurrentValidation();
 
-                        // Progress and summary for filtered data
+                        // Progress shows filtered data, summary shows ALL data
                         const newActiveData = getActiveValidationData(); // Re-fetch active data
                         const newLocalIndex = currentIndex - currentStartIndex;
                         updateProgressUI(newLocalIndex + 1, newActiveData.length);
-                        updateSummaryUI(generateSummary(newActiveData));
+                        updateSummaryUI(generateSummary(validationData));
 
                         // Enable export button if we have results
                         if (exportResultsBtn) {
@@ -1291,12 +1490,25 @@ function initializePanel() {
     function updateProgressUI(current, total) {
         if (!progressBar || !progressText) return;
 
-        // Adjust current value to be relative to start index
-        const adjustedCurrent = Math.min(current, total);
-        const percentage = Math.round((adjustedCurrent / total) * 100);
+        // Safeguard: ensure values are non-negative
+        const safeCurrent = Math.max(0, current || 0);
+        const safeTotal = Math.max(1, total || 1); // Minimum 1 to avoid division by zero
+        
+        // Adjust current value to be relative to total
+        const adjustedCurrent = Math.min(safeCurrent, safeTotal);
+        const percentage = safeTotal > 0 ? Math.round((adjustedCurrent / safeTotal) * 100) : 0;
+
+        // Enhanced logging with stack trace
+        console.log('=== updateProgressUI CALLED ===');
+        console.log('Parameters:', { current, total });
+        console.log('Calculated:', { safeCurrent, safeTotal, adjustedCurrent, percentage });
+        console.log('validationData.length:', validationData ? validationData.length : 'undefined');
+        console.log('currentIndex:', currentIndex);
+        console.log('currentStartIndex:', currentStartIndex);
+        console.trace('Call stack');
 
         progressBar.style.width = `${percentage}%`;
-        progressText.textContent = `${adjustedCurrent}/${total} URLs processed (${percentage}%)`;
+        progressText.textContent = `${adjustedCurrent}/${safeTotal} URLs processed (${percentage}%)`;
 
         // Update the displayed current index to include the start index offset
         if (startIndexInput) {
@@ -1332,8 +1544,16 @@ function initializePanel() {
                     stopValidationBtn.disabled = false;
                 }
 
+                // Disable Next URL button for new run (needs validation to start)
                 if (nextUrlBtn) {
-                    nextUrlBtn.disabled = false;
+                    nextUrlBtn.disabled = true;
+                    nextUrlBtn.title = 'Start validation to enable this button';
+                }
+
+                // Disable Log False Negative button for new run
+                if (logFalseNegativeBtn) {
+                    logFalseNegativeBtn.disabled = true;
+                    logFalseNegativeBtn.title = 'Start validation to enable this feature';
                 }
 
                 // Reset validation state completely
@@ -1401,6 +1621,56 @@ function initializePanel() {
                         csvFileInput.value = '';
                     }
                 });
+            });
+        });
+    }
+
+    // Handle Log False Negative button click
+    const logFalseNegativeBtn = document.getElementById('logFalseNegative');
+    if (logFalseNegativeBtn) {
+        // Initially disable - only enable during active validation
+        logFalseNegativeBtn.disabled = true;
+        logFalseNegativeBtn.title = 'Start validation to enable this feature';
+        
+        logFalseNegativeBtn.addEventListener('click', function () {
+            console.log('=== LOG FALSE NEGATIVE CLICKED ===');
+            
+            // Check if there's a pending status update
+            if (processingNextUrl) {
+                showNotification('Please wait for current status update to complete', 'warning');
+                return;
+            }
+            
+            // If there's a selected status that hasn't been saved, warn the user
+            if (selectedStatus) {
+                showNotification('Please save the current status first (click Next URL)', 'warning');
+                return;
+            }
+            
+            // Get the current URL from the active tab
+            chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+                if (tabs && tabs.length > 0) {
+                    const currentUrl = tabs[0].url;
+                    const tabId = tabs[0].id;
+                    
+                    console.log('Enabling element selection for URL:', currentUrl);
+                    
+                    // Show notification to user
+                    showNotification('Click on an element in the page to log it as a False Negative', 'info', 3000);
+                    
+                    // Send message to content script to enable element selection mode
+                    chrome.tabs.sendMessage(tabId, {
+                        action: 'ENABLE_ELEMENT_SELECTION',
+                        payload: { url: currentUrl }
+                    }, function (response) {
+                        if (chrome.runtime.lastError) {
+                            console.error('Error enabling element selection:', chrome.runtime.lastError);
+                            showNotification('Error: Could not enable element selection. Please refresh the page.', 'error');
+                        }
+                    });
+                } else {
+                    showNotification('No active tab found', 'error');
+                }
             });
         });
     }
@@ -1486,6 +1756,16 @@ function initializePanel() {
                 updateProgressUI(0, 0);
                 if (exportResultsBtn) exportResultsBtn.disabled = true;
                 if (resumeValidationBtn) resumeValidationBtn.style.display = 'none';
+                
+                // Ensure buttons are properly disabled when no validation data
+                if (nextUrlBtn) {
+                    nextUrlBtn.disabled = true;
+                    nextUrlBtn.title = 'Start validation to enable this button';
+                }
+                if (logFalseNegativeBtn) {
+                    logFalseNegativeBtn.disabled = true;
+                    logFalseNegativeBtn.title = 'Start validation to enable this feature';
+                }
             } else {
                 // Always show summary if we have data
                 setUISection('summary');
@@ -1506,8 +1786,8 @@ function initializePanel() {
                     // Update progress UI with the correct relative index based on filtered data
                     updateProgressUI(relativeIndex, activeData.length);
 
-                    // Update summary with the filtered data to show correct stats
-                    updateSummaryUI(generateSummary(activeData));
+                    // Update summary with ALL data to show correct overall stats
+                    updateSummaryUI(generateSummary(validationData));
 
                     if (exportResultsBtn) {
                         exportResultsBtn.disabled = !hasResults(activeData);
@@ -1536,9 +1816,9 @@ function initializePanel() {
             // Reset processingNextUrl flag
             processingNextUrl = false;
 
-            // Reset Next URL button if it was stuck
-            if (nextUrlBtn) {
-                nextUrlBtn.disabled = false;
+            // Don't automatically enable Next URL button - it should only be enabled during active validation
+            // Reset button text if it was stuck in "Updating..." state
+            if (nextUrlBtn && nextUrlBtn.textContent !== 'Next URL') {
                 nextUrlBtn.textContent = 'Next URL';
             }
         } catch (err) {
@@ -1602,8 +1882,15 @@ function initializePanel() {
     // Button event listeners
     if (exportResultsBtn) {
         exportResultsBtn.addEventListener('click', function () {
+            console.log('=== EXPORT RESULTS CLICKED ===');
+            
             // Always fetch the latest validationData and current index from storage before exporting
             chrome.storage.local.get(['validationData', 'initialFilterStartIndex', 'currentIndex'], function (data) {
+                console.log('Export - Storage data retrieved:');
+                console.log('- validationData length:', data.validationData ? data.validationData.length : 0);
+                console.log('- initialFilterStartIndex:', data.initialFilterStartIndex);
+                console.log('- currentIndex:', data.currentIndex);
+                
                 let exportData = [];
                 let initialStart = typeof data.initialFilterStartIndex === 'number' ? data.initialFilterStartIndex : 0;
                 let endIndex = typeof data.currentIndex === 'number' ? data.currentIndex : validationData.length;
@@ -1614,21 +1901,44 @@ function initializePanel() {
                 console.log(`Exporting data from index ${initialStart} to ${endIndex}`);
 
                 if (Array.isArray(data.validationData) && data.validationData.length > 0) {
+                    console.log('Full validationData:', JSON.parse(JSON.stringify(data.validationData)));
+                    
                     // Only export the range of data that has been processed
-                    exportData = data.validationData.slice(initialStart, endIndex + 1).map(row => ({
-                        url: row.url,
-                        targetNode: row.targetNode,
-                        status: row.status || 'Pending',
-                        comments: row.comments || ''
-                    }));
+                    exportData = data.validationData.slice(initialStart, endIndex + 1).map((row, idx) => {
+                        const actualIndex = initialStart + idx;
+                        console.log(`Export item ${actualIndex}:`, {
+                            url: row.url,
+                            targetNode: row.targetNode,
+                            status: row.status,
+                            comments: row.comments
+                        });
+                        return {
+                            url: row.url || '',
+                            targetNode: row.targetNode || '',
+                            status: row.status || 'Pending',
+                            comments: row.comments || ''
+                        };
+                    });
+                    
+                    console.log('Processed export data:', JSON.parse(JSON.stringify(exportData)));
                 } else {
+                    console.log('Fallback to in-memory data');
                     // Fallback to current in-memory data if storage is empty
-                    exportData = validationData.slice(initialStart, currentIndex + 1).map(row => ({
-                        url: row.url,
-                        targetNode: row.targetNode,
-                        status: row.status || 'Pending',
-                        comments: row.comments || ''
-                    }));
+                    exportData = validationData.slice(initialStart, currentIndex + 1).map((row, idx) => {
+                        const actualIndex = initialStart + idx;
+                        console.log(`Export item ${actualIndex} (from memory):`, {
+                            url: row.url,
+                            targetNode: row.targetNode,
+                            status: row.status,
+                            comments: row.comments
+                        });
+                        return {
+                            url: row.url || '',
+                            targetNode: row.targetNode || '',
+                            status: row.status || 'Pending',
+                            comments: row.comments || ''
+                        };
+                    });
                 }
 
                 if (!exportData || exportData.length === 0) {
@@ -1636,6 +1946,7 @@ function initializePanel() {
                     return;
                 }
 
+                console.log(`=== EXPORTING ${exportData.length} ITEMS ===`);
                 exportCsv(exportData);
                 showNotification(`Exported ${exportData.length} validated nodes.`, 'success');
             });
@@ -1807,7 +2118,9 @@ function initializePanel() {
     // Improved generateSummary function to handle edge cases
     function generateSummary(data) {
         // Add debugging to identify potential issues
-        console.log(`Generating summary for ${data.length} items, currentStartIndex: ${currentStartIndex}`);
+        console.log('=== GENERATING SUMMARY ===');
+        console.log(`Total items: ${data.length}, currentStartIndex: ${currentStartIndex}`);
+        console.log('All items:', data.map((row, i) => ({ index: i, url: row.url, selector: row.targetNode, status: row.status })));
 
         const summary = {
             totalUrls: new Set(data.map(row => row.url)).size,
@@ -1820,7 +2133,8 @@ function initializePanel() {
             pending: 0
         };
 
-        data.forEach(row => {
+        data.forEach((row, index) => {
+            console.log(`Item ${index}: status="${row.status}"`);
             if (!row.status || row.status === 'Pending') {
                 summary.pending++;
             } else if (row.status === 'True Positive') {
@@ -1848,6 +2162,7 @@ function initializePanel() {
 
         // Add debugging
         console.log('Summary generated:', summary);
+        console.log('=== END SUMMARY ===');
 
         return summary;
     }
