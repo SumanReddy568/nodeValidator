@@ -142,22 +142,43 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
             return true;
 
         case 'UPDATE_STATUS':
-            // Immediately send a success response to prevent timeout
-            sendResponse({ success: true });
-
             try {
                 const { index, status, comments } = message.payload;
-                console.log('Updating status for index', index, 'to', status);
+                console.log('=== UPDATE_STATUS ===');
+                console.log('Updating index:', index, 'to status:', status, 'with comments:', comments);
 
-                // Get current data
+                // Get current data from storage to ensure we have the latest state
                 chrome.storage.local.get(['validationData'], function (result) {
                     if (result.validationData && Array.isArray(result.validationData)) {
-                        // Update the data
+                        console.log('Current validationData length:', result.validationData.length);
+                        console.log('Updating item at index', index, '- Before:', result.validationData[index]);
+                        
+                        // Validate index is within bounds
+                        if (index < 0 || index >= result.validationData.length) {
+                            console.error('Index out of bounds:', index, 'Data length:', result.validationData.length);
+                            sendResponse({ 
+                                success: false, 
+                                error: `Index ${index} out of bounds (0-${result.validationData.length - 1})` 
+                            });
+                            return;
+                        }
+                        
+                        // Update the data at the specific index
                         result.validationData[index].status = status;
                         result.validationData[index].comments = comments || '';
+                        
+                        console.log('After update:', result.validationData[index]);
+                        
+                        // Also update the validationData in background script memory
+                        validationData = result.validationData;
 
                         // Save back to storage
                         chrome.storage.local.set({ validationData: result.validationData }, function () {
+                            console.log('Status update saved to storage successfully');
+                            
+                            // Send success response after data is saved
+                            sendResponse({ success: true });
+                            
                             // Notify the panel of the update
                             chrome.runtime.sendMessage({
                                 action: 'UPDATE_STATUS_RESULT',
@@ -168,7 +189,11 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
                             });
                         });
                     } else {
-                        console.error('Invalid validation data structure');
+                        console.error('Invalid validation data structure:', result.validationData);
+                        sendResponse({
+                            success: false,
+                            error: 'Invalid validation data structure'
+                        });
                         chrome.runtime.sendMessage({
                             action: 'UPDATE_STATUS_RESULT',
                             success: false,
@@ -178,6 +203,10 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
                 });
             } catch (error) {
                 console.error('Error updating status:', error);
+                sendResponse({
+                    success: false,
+                    error: error.message || 'Unknown error'
+                });
                 chrome.runtime.sendMessage({
                     action: 'UPDATE_STATUS_RESULT',
                     success: false,

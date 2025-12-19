@@ -156,6 +156,20 @@ console.log('Node Validator Content Script loaded');
             return true; // Keep message channel open for async response
         }
 
+        if (message.action === 'ENABLE_ELEMENT_SELECTION') {
+            console.log('=== CONTENT SCRIPT: ENABLE_ELEMENT_SELECTION ===');
+            console.log('Message payload:', message.payload);
+            
+            const { url } = message.payload;
+            console.log('Extracted URL from payload:', url);
+            
+            // Enable element selection mode
+            enableElementSelectionMode(url);
+            
+            sendResponse({ success: true });
+            return true;
+        }
+
         return false;
     });
 
@@ -845,6 +859,220 @@ console.log('Node Validator Content Script loaded');
             document.onmouseup = null;
             document.onmousemove = null;
         }
+    }
+
+    /**
+     * Enable element selection mode for logging False Negatives
+     */
+    let elementSelectionMode = false;
+    let selectionUrl = null;
+    let hoveredElement = null;
+
+    function enableElementSelectionMode(url) {
+        console.log('=== ENABLING ELEMENT SELECTION MODE ===');
+        console.log('Received URL parameter:', url);
+        console.log('Current page URL:', window.location.href);
+        
+        elementSelectionMode = true;
+        selectionUrl = url || window.location.href;  // Use current URL as fallback
+        
+        console.log('selectionUrl set to:', selectionUrl);
+
+        // Add visual indicator for selection mode
+        const overlay = document.createElement('div');
+        overlay.id = 'nv-selection-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.1);
+            z-index: 999998;
+            cursor: crosshair;
+            pointer-events: none;
+        `;
+        document.body.appendChild(overlay);
+
+        // Add instruction banner
+        const banner = document.createElement('div');
+        banner.id = 'nv-selection-banner';
+        banner.style.cssText = `
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #4776E6;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 1000000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        `;
+        banner.innerHTML = `
+            <div>Click on an element to log as False Negative</div>
+            <div style="font-size: 12px; margin-top: 4px; opacity: 0.9;">Press ESC to cancel</div>
+        `;
+        document.body.appendChild(banner);
+
+        // Add mouse move listener to highlight hovered element
+        document.addEventListener('mousemove', handleMouseMove, true);
+        
+        // Add click listener to select element
+        document.addEventListener('click', handleElementClick, true);
+        
+        // Add escape key listener to cancel
+        document.addEventListener('keydown', handleEscapeKey, true);
+    }
+
+    function handleMouseMove(e) {
+        if (!elementSelectionMode) return;
+
+        // Remove previous highlight
+        if (hoveredElement) {
+            hoveredElement.style.outline = '';
+            hoveredElement.style.outlineOffset = '';
+        }
+
+        // Highlight new element
+        hoveredElement = e.target;
+        hoveredElement.style.outline = '3px solid #4776E6';
+        hoveredElement.style.outlineOffset = '2px';
+    }
+
+    function handleElementClick(e) {
+        if (!elementSelectionMode) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const element = e.target;
+        
+        // Generate selector for the element
+        const selector = generateUniqueSelector(element);
+        
+        console.log('=== ELEMENT CLICKED FOR FN ===');
+        console.log('selectionUrl:', selectionUrl);
+        console.log('Current page URL:', window.location.href);
+        console.log('Generated selector:', selector);
+        
+        // Use current page URL if selectionUrl is not set (fallback)
+        const finalUrl = selectionUrl || window.location.href;
+        
+        console.log('Final URL to send:', finalUrl);
+        
+        // Disable selection mode
+        disableElementSelectionMode();
+
+        // Send the selected element to panel
+        chrome.runtime.sendMessage({
+            action: 'ELEMENT_SELECTED_FOR_FN',
+            payload: {
+                url: finalUrl,
+                selector: selector
+            }
+        });
+        
+        console.log('Message sent to panel with URL:', finalUrl);
+    }
+
+    function handleEscapeKey(e) {
+        if (!elementSelectionMode) return;
+
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            disableElementSelectionMode();
+            
+            // Notify panel that selection was cancelled
+            chrome.runtime.sendMessage({
+                action: 'ELEMENT_SELECTION_CANCELLED'
+            });
+        }
+    }
+
+    function disableElementSelectionMode() {
+        elementSelectionMode = false;
+        selectionUrl = null;
+
+        // Remove overlay and banner
+        const overlay = document.getElementById('nv-selection-overlay');
+        if (overlay) overlay.remove();
+
+        const banner = document.getElementById('nv-selection-banner');
+        if (banner) banner.remove();
+
+        // Remove highlight from hovered element
+        if (hoveredElement) {
+            hoveredElement.style.outline = '';
+            hoveredElement.style.outlineOffset = '';
+            hoveredElement = null;
+        }
+
+        // Remove event listeners
+        document.removeEventListener('mousemove', handleMouseMove, true);
+        document.removeEventListener('click', handleElementClick, true);
+        document.removeEventListener('keydown', handleEscapeKey, true);
+    }
+
+    /**
+     * Generate a unique CSS selector for an element
+     */
+    function generateUniqueSelector(element) {
+        // If element has an ID, use it
+        if (element.id) {
+            return `#${CSS.escape(element.id)}`;
+        }
+
+        // Build selector path from element
+        const path = [];
+        let current = element;
+
+        while (current && current.nodeType === Node.ELEMENT_NODE) {
+            let selector = current.tagName.toLowerCase();
+
+            // Add class if available
+            if (current.className && typeof current.className === 'string') {
+                const classes = current.className.trim().split(/\s+/).filter(c => c.length > 0);
+                if (classes.length > 0) {
+                    selector += '.' + classes.map(c => CSS.escape(c)).join('.');
+                }
+            }
+
+            // Add nth-child if needed for uniqueness
+            if (current.parentElement) {
+                const siblings = Array.from(current.parentElement.children);
+                const sameTagSiblings = siblings.filter(s => s.tagName === current.tagName);
+                
+                if (sameTagSiblings.length > 1) {
+                    const index = sameTagSiblings.indexOf(current) + 1;
+                    selector += `:nth-of-type(${index})`;
+                }
+            }
+
+            path.unshift(selector);
+
+            // Stop if we reach body or have a unique selector
+            if (current.tagName.toLowerCase() === 'body') {
+                break;
+            }
+
+            // Test if current path is unique
+            const testSelector = path.join(' > ');
+            try {
+                if (document.querySelectorAll(testSelector).length === 1) {
+                    return testSelector;
+                }
+            } catch (e) {
+                // Invalid selector, continue building
+            }
+
+            current = current.parentElement;
+        }
+
+        return path.join(' > ');
     }
 
     chrome.runtime.sendMessage({ action: 'CONTENT_SCRIPT_READY' });
