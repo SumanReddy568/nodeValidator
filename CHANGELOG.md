@@ -1,3 +1,6 @@
+## [1.2.3] - 2026-03-23
+- Merge pull request #10 from SumanReddy568/ai_labelling_poc ai poc vertex llm addition
+
 ## [1.2.9] - 2026-03-23
 - context image context fix
 
