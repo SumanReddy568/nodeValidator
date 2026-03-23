@@ -820,6 +820,18 @@ info-item span,
     /* Gray shadow */
 }
 
+/* Added status button for Info (Not a Violation) */
+.status-btn.info {
+    border-left: 3px solid var(--info);
+}
+
+.status-btn.info.selected {
+    background-color: var(--info);
+    border-color: var(--info);
+    box-shadow: 0 1px 4px rgba(66, 133, 244, 0.4);
+    /* Blue shadow */
+}
+
 /* Add ripple effect for buttons */
 .status-btn:after {
     content: '';
@@ -1916,11 +1928,8 @@ body:has(.dock-warning) .panel-container {
 }
 .ai-rule-selector-inline .ai-analyze-btn {
     height: 26px;
-    padding: 0 8px;
+    padding: 0 10px;
     font-size: 12px;
-    display: flex;
-    align-items: center;
-    white-space: nowrap;
 }
 
 /* Make headers more responsive */
@@ -3158,4 +3167,14 @@ input:checked + .premium-slider:before {
     /* Reset icon sizes to prevent different rendering */
     width: 24px;
     height: 24px;
+}
+
+.status-btn.info {
+    background-color: var(--info);
+    color: var(--light);
+}
+
+.status-btn.info.selected {
+    background-color: var(--primary-dark);
+    color: var(--light);
 }

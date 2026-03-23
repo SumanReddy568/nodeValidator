@@ -246,6 +246,7 @@ function initializePanel() {
     statusNotValid: "Not Valid",
     statusNeedsReview: "Needs Review", // Added
     statusSkip: "Skipped",
+    statusNotViolation: "Not a Violation", // New status
   };
 
   let selectedStatus = null;
@@ -619,7 +620,9 @@ function initializePanel() {
     feedback.classList.remove("idle", "waiting", "loading", "success", "error");
     feedback.classList.add(state);
     status.textContent = statusText;
-    trigger.textContent = triggerText ? `Trigger: ${triggerText}` : "Trigger: waiting";
+    trigger.textContent = triggerText
+      ? `Trigger: ${triggerText}`
+      : "Trigger: waiting";
   }
 
   function expandAIAnalysisPanel() {
@@ -629,7 +632,77 @@ function initializePanel() {
     }
   }
 
+  // Screenshot queue and caching system
+  let screenshotQueue = [];
+  let isProcessingScreenshot = false;
+  let screenshotCache = new Map();
+  const SCREENSHOT_CACHE_TTL = 5000; // 5 seconds cache
+  const SCREENSHOT_RETRY_DELAY = 250; // 250ms delay between retries
+  const MAX_SCREENSHOT_RETRIES = 3;
+
   function requestVisibleTabScreenshot() {
+    return new Promise((resolve, reject) => {
+      // Add to queue
+      screenshotQueue.push({ resolve, reject, retryCount: 0 });
+      processScreenshotQueue();
+    });
+  }
+
+  async function processScreenshotQueue() {
+    if (isProcessingScreenshot || screenshotQueue.length === 0) {
+      return;
+    }
+
+    isProcessingScreenshot = true;
+    
+    while (screenshotQueue.length > 0) {
+      const request = screenshotQueue.shift();
+      
+      try {
+        // Check cache first
+        const cacheKey = 'visible_tab_' + Date.now().toString().slice(0, -3); // Cache per second
+        if (screenshotCache.has(cacheKey)) {
+          const cached = screenshotCache.get(cacheKey);
+          if (Date.now() - cached.timestamp < SCREENSHOT_CACHE_TTL) {
+            request.resolve(cached.dataUrl);
+            continue;
+          } else {
+            screenshotCache.delete(cacheKey);
+          }
+        }
+
+        const dataUrl = await captureVisibleTabInternal();
+        
+        // Cache the result
+        screenshotCache.set(cacheKey, {
+          dataUrl,
+          timestamp: Date.now()
+        });
+        
+        request.resolve(dataUrl);
+        
+        // Small delay between requests to avoid overwhelming the API
+        if (screenshotQueue.length > 0) {
+          await delay(SCREENSHOT_RETRY_DELAY);
+        }
+        
+      } catch (error) {
+        if (request.retryCount < MAX_SCREENSHOT_RETRIES) {
+          request.retryCount++;
+          // Re-add to queue for retry with exponential backoff
+          await delay(SCREENSHOT_RETRY_DELAY * Math.pow(2, request.retryCount));
+          screenshotQueue.unshift(request); // Add to front for immediate retry
+        } else {
+          request.reject(new Error(`Screenshot failed after ${MAX_SCREENSHOT_RETRIES} retries: ${error.message}`));
+        }
+      }
+    }
+    
+    isProcessingScreenshot = false;
+  }
+
+  async function captureVisibleTabInternal() {
+
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         { action: "CAPTURE_VISIBLE_TAB_SCREENSHOT" },
@@ -641,7 +714,9 @@ function initializePanel() {
 
           if (!response?.success || !response.dataUrl) {
             reject(
-              new Error(response?.error || "Visible tab screenshot capture failed"),
+              new Error(
+                response?.error || "Visible tab screenshot capture failed",
+              ),
             );
             return;
           }
@@ -670,6 +745,16 @@ function initializePanel() {
     });
   }
 
+  // Clean up old cache entries periodically
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of screenshotCache.entries()) {
+      if (now - value.timestamp > SCREENSHOT_CACHE_TTL) {
+        screenshotCache.delete(key);
+      }
+    }
+  }, SCREENSHOT_CACHE_TTL);
+
   function sendMessageToCaptureTab(tabId, action, payload = {}) {
     return new Promise((resolve, reject) => {
       chrome.tabs.sendMessage(tabId, { action, payload }, (response) => {
@@ -696,7 +781,8 @@ function initializePanel() {
     return new Promise((resolve, reject) => {
       const image = new Image();
       image.onload = () => resolve(image);
-      image.onerror = () => reject(new Error("Failed to load screenshot image"));
+      image.onerror = () =>
+        reject(new Error("Failed to load screenshot image"));
       image.src = dataUrl;
     });
   }
@@ -708,7 +794,8 @@ function initializePanel() {
 
     const image = await loadImageFromDataUrl(screenshotDataUrl);
     const viewportWidth = screenshotTarget.viewportWidth || window.innerWidth;
-    const viewportHeight = screenshotTarget.viewportHeight || window.innerHeight;
+    const viewportHeight =
+      screenshotTarget.viewportHeight || window.innerHeight;
 
     if (!viewportWidth || !viewportHeight) {
       return null;
@@ -782,7 +869,8 @@ function initializePanel() {
     const MAX_CONTEXT_DIMENSION = 1800;
     const scale = Math.min(
       1,
-      MAX_CONTEXT_DIMENSION / Math.max(metrics.fullWidth, metrics.fullHeight, 1),
+      MAX_CONTEXT_DIMENSION /
+        Math.max(metrics.fullWidth, metrics.fullHeight, 1),
     );
 
     const canvas = document.createElement("canvas");
@@ -806,60 +894,100 @@ function initializePanel() {
     return canvas.toDataURL("image/jpeg", 0.82);
   }
 
+  // Optimize full page screenshot with better batching
   async function prepareFullPageContextScreenshotForAI() {
-    const tabId = await getCaptureTabId();
-    const metrics = await sendMessageToCaptureTab(tabId, "GET_CAPTURE_DIMENSIONS");
-
-    const xPositions = [];
-    const yPositions = [];
-
-    for (let x = 0; x < metrics.fullWidth; x += metrics.viewportWidth) {
-      xPositions.push(Math.min(x, Math.max(metrics.fullWidth - metrics.viewportWidth, 0)));
-    }
-    for (let y = 0; y < metrics.fullHeight; y += metrics.viewportHeight) {
-      yPositions.push(Math.min(y, Math.max(metrics.fullHeight - metrics.viewportHeight, 0)));
-    }
-
-    const uniqueX = [...new Set(xPositions)];
-    const uniqueY = [...new Set(yPositions)];
-    const tiles = [];
-    const seenPositions = new Set();
-
     try {
-      for (const y of uniqueY) {
-        for (const x of uniqueX) {
-          const position = await sendMessageToCaptureTab(tabId, "SCROLL_TO_CAPTURE_POSITION", {
-            x,
-            y,
-          });
-          await delay(120);
-          const key = `${position.scrollX}:${position.scrollY}`;
-          if (seenPositions.has(key)) {
-            continue;
-          }
+      const tabId = await getCaptureTabId();
+      const metrics = await sendMessageToCaptureTab(
+        tabId,
+        "GET_CAPTURE_DIMENSIONS",
+      );
 
-          seenPositions.add(key);
-          const dataUrl = await requestVisibleTabScreenshot();
-          tiles.push({
-            x: position.scrollX,
-            y: position.scrollY,
-            dataUrl,
-          });
-        }
+      // Check if we can use a single screenshot (small page)
+      if (metrics.fullHeight <= metrics.viewportHeight * 2 && 
+          metrics.fullWidth <= metrics.viewportWidth * 2) {
+        // Small page - just take one expanded screenshot
+        const dataUrl = await requestVisibleTabScreenshot();
+        currentElementData.contextScreenshotDataUrl = dataUrl;
+        return dataUrl;
       }
-    } finally {
-      await sendMessageToCaptureTab(tabId, "SCROLL_TO_CAPTURE_POSITION", {
-        x: metrics.scrollX,
-        y: metrics.scrollY,
-      }).catch(() => {});
-    }
 
-    const contextScreenshot = await stitchFullPageScreenshot(tiles, metrics);
-    currentElementData.contextScreenshotDataUrl = contextScreenshot;
-    return contextScreenshot;
+      const xPositions = [];
+      const yPositions = [];
+
+      // Optimize positions to reduce overlap
+      const xStep = Math.floor(metrics.viewportWidth * 0.8); // 20% overlap
+      const yStep = Math.floor(metrics.viewportHeight * 0.8); // 20% overlap
+
+      for (let x = 0; x < metrics.fullWidth; x += xStep) {
+        xPositions.push(
+          Math.min(x, Math.max(metrics.fullWidth - metrics.viewportWidth, 0)),
+        );
+      }
+      for (let y = 0; y < metrics.fullHeight; y += yStep) {
+        yPositions.push(
+          Math.min(y, Math.max(metrics.fullHeight - metrics.viewportHeight, 0)),
+        );
+      }
+
+      const uniqueX = [...new Set(xPositions)];
+      const uniqueY = [...new Set(yPositions)];
+      const tiles = [];
+      const seenPositions = new Set();
+
+      try {
+        for (const y of uniqueY) {
+          for (const x of uniqueX) {
+            const position = await sendMessageToCaptureTab(
+              tabId,
+              "SCROLL_TO_CAPTURE_POSITION",
+              {
+                x,
+                y,
+              },
+            );
+            await delay(150); // Slightly longer delay for stability
+            const key = `${position.scrollX}:${position.scrollY}`;
+            if (seenPositions.has(key)) {
+              continue;
+            }
+
+            seenPositions.add(key);
+            const dataUrl = await requestVisibleTabScreenshot();
+            tiles.push({
+              x: position.scrollX,
+              y: position.scrollY,
+              dataUrl,
+            });
+          }
+        }
+      } finally {
+        await sendMessageToCaptureTab(tabId, "SCROLL_TO_CAPTURE_POSITION", {
+          x: metrics.scrollX,
+          y: metrics.scrollY,
+        }).catch(() => {});
+      }
+
+      const contextScreenshot = await stitchFullPageScreenshot(tiles, metrics);
+      currentElementData.contextScreenshotDataUrl = contextScreenshot;
+      return contextScreenshot;
+    } catch (error) {
+      console.warn("Full page screenshot failed, using single screenshot:", error);
+      // Fallback to single screenshot
+      try {
+        const dataUrl = await requestVisibleTabScreenshot();
+        currentElementData.contextScreenshotDataUrl = dataUrl;
+        return dataUrl;
+      } catch (fallbackError) {
+        console.error("Fallback screenshot also failed:", fallbackError);
+        throw fallbackError;
+      }
+    }
   }
 
-  async function triggerCurrentElementAIAnalysis(triggerSource = "element update") {
+  async function triggerCurrentElementAIAnalysis(
+    triggerSource = "element update",
+  ) {
     const evaluateCheckbox = document.getElementById("evaluateUsingAi");
 
     if (!evaluateCheckbox) {
@@ -959,7 +1087,9 @@ function initializePanel() {
 
     window.aiAnalyzer
       .analyzeElement(currentElementData, {
-        imageDataUrls: [screenshotDataUrl, contextScreenshotDataUrl].filter(Boolean),
+        imageDataUrls: [screenshotDataUrl, contextScreenshotDataUrl].filter(
+          Boolean,
+        ),
       })
       .then((result) => {
         if (result?.success === false) {
@@ -1000,11 +1130,11 @@ function initializePanel() {
               `${triggerSource}`,
             );
           } else if (status === "PASS" && isHighConfidence) {
-            statusStr = "False Positive";
-            commentStr = `[AI Auto] FP. Confidence: ${confidence}%. Reason: ${summary}`;
+            statusStr = "Not a Violation";
+            commentStr = `[AI Auto] Not a Violation. Confidence: ${confidence}%. Reason: ${summary}`;
             setAIAnalysisFeedback(
               "success",
-              `AI marked False Positive at ${confidence}% confidence.`,
+              `AI marked Not a Violation at ${confidence}% confidence.`,
               `${triggerSource}`,
             );
           } else {

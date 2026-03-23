@@ -9,7 +9,9 @@ const NodeStatus = {
     FalseNegative: 'False Negative',
     NotFound: 'Not Found',
     NotValid: 'Not Valid',
-    Pending: 'Pending'
+    NeedsReview: 'Needs Review',
+    Pending: 'Pending',
+    NotViolation: 'Not a Violation' // Added
 };
 
 /**
@@ -84,7 +86,8 @@ function exportCsv(data) {
         falsePositives: csvData.filter(row => row.status === 'False Positive').length,
         falseNegatives: csvData.filter(row => row.status === 'False Negative').length,
         notValid: csvData.filter(row => row.status === 'Not Valid').length,
-        needsReview: csvData.filter(row => row.status === 'Needs Review').length
+        needsReview: csvData.filter(row => row.status === 'Needs Review').length,
+        notViolations: csvData.filter(row => row.status === 'Not a Violation').length
     };
 
     // Save the report in local storage
@@ -123,6 +126,7 @@ function generateSummary(data) {
         falsePositives: data.filter(row => row.status === 'False Positive').length,
         falseNegatives: data.filter(row => row.status === 'False Negative').length,
         notValid: data.filter(row => row.status === 'Not Valid').length,
-        pending: data.filter(row => !row.status || row.status === 'Pending').length
+        pending: data.filter(row => !row.status || row.status === 'Pending').length,
+        notViolations: data.filter(row => row.status === 'Not a Violation').length
     };
 }

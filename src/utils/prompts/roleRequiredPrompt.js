@@ -28,14 +28,16 @@ ${elementData.attributes}
 # INSTRUCTIONS
 ---
 Your analysis must be methodical and precise.
+strict_rule: Do not not consider element highlighted border for evaluation, it just for representation of the base element
 1. **Evaluate:** Determine if the Target HTML Element needs a specific explicit ARIA role based on its tag and attributes, and whether it correctly implements it or natively has it (e.g., a native <button> implicitly has the 'button' role).
 2. Look at its accessibility properties: does it have the required ARIA role or native HTML equivalent? 
-3. Look at intractability: is it focusable? Does it have a valid tab index if it's an interactive role like 'button' or 'link'?
-4. **Pass/Fail:** Assign a final status of "PASS" or "FAIL".
-   - **PASS:** The element fully meets the requirement for having the proper role and intractability state.
-   - **FAIL:** The element is missing the required role, has an incorrect role, or lacks intractability/focusability for its intended form/function.
-5. **Summary & Details:** Provide a concise summary and a detailed technical explanation referencing the code.
-6. **Suggestions:** Provide an actionable code snippet to fix any issues.
+3. Look at interactivity: is it focusable? Does it have a valid tab index if it's an interactive role like 'button' or 'link'?
+4. **Interactive Check:** Determine if the element is built to be an interactive element (e.g., buttons, links, inputs). If the element is not interactive, ensure that no ARIA role is assigned to it.
+5. **Pass/Fail:** Assign a final status of "PASS" or "FAIL".
+   - **PASS:** The element fully meets the requirement for having the proper role and interactivity state.
+   - **FAIL:** The element is missing the required role, has an incorrect role, or lacks interactivity/focusability for its intended form/function.
+6. **Summary & Details:** Provide a concise summary and a detailed technical explanation referencing the code.
+7. **Suggestions:** Provide an actionable code snippet to fix any issues.
 
 # RESPONSE FORMAT
 ---

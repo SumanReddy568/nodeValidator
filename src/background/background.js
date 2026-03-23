@@ -4,14 +4,17 @@ let validationTabId = null; // Track the tab being used for validation
 let validationActive = false; // Add a flag to track active validation
 let automatedMode = false; // Flag to track if we're in automated mode
 let lastUrl = null; // Track the last URL loaded in the validation tab
+let lastCaptureTime = 0; // Track the last time a screenshot was captured
+const CAPTURE_RATE_LIMIT = 100; // Reduced to 100ms from 1000ms
 
 const NodeStatus = {
     TruePositive: 'True Positive',
     FalsePositive: 'False Positive',
     FalseNegative: 'False Negative',
     NotValid: 'Not Valid',
-    NeedsReview: 'Needs Review', // Added
-    Pending: 'Pending'
+    NeedsReview: 'Needs Review',
+    Pending: 'Pending',
+    NotViolation: 'Not a Violation'
 };
 
 // Add these variables for keepalive functionality
@@ -47,6 +50,13 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
 
     switch (message.action) {
         case 'CAPTURE_VISIBLE_TAB_SCREENSHOT': {
+            const now = Date.now();
+            if (now - lastCaptureTime < CAPTURE_RATE_LIMIT) {
+                sendResponse({ success: false, error: "Screenshot request throttled" });
+                return true;
+            }
+            lastCaptureTime = now;
+
             const resolveTab = () => new Promise((resolve, reject) => {
                 if (validationTabId !== null) {
                     chrome.tabs.get(validationTabId, (tab) => {

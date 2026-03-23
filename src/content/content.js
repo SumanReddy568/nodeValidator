@@ -14,7 +14,8 @@ console.log('Node Validator Content Script loaded');
             NotFound: 'Not Found',
             NotValid: 'Not Valid',
             NeedsReview: 'Needs Review',
-            Pending: 'Pending'
+            Pending: 'Pending',
+            NotViolation: 'Not a Violation' // Added
         };
     }
 
@@ -287,6 +288,7 @@ console.log('Node Validator Content Script loaded');
                 }
             } catch (e) {
                 console.warn('querySelector failed:', e);
+                return null; // Return null to indicate failure
             }
 
             // Try with JavaScript evaluation if it looks like a JavaScript expression
