@@ -169,79 +169,119 @@
                 </svg>
             </a>
 
-            <!-- Settings Menu -->
+            <!-- Settings Menu Redesigned -->
             <div class="settings-menu" id="settingsMenu">
                 <div class="settings-menu-header">
-                    <h3>Settings</h3>
+                    <h3>AI Configuration</h3>
+                    <button class="menu-close-btn" id="hideSettingsBtn">&times;</button>
                 </div>
+
                 <div class="settings-menu-content">
-                    <!-- Add AI toggle section -->
-                    <div class="settings-section">
-                        <div class="settings-section-title">AI Features</div>
-                        <div class="toggle-setting">
-                            <label for="aiOptToggle" class="toggle-label">Enable AI Analysis</label>
-                            <label class="switch">
+                    <!-- AI Feature Toggle -->
+                    <div class="config-card">
+                        <div class="card-row">
+                            <div>
+                                <h4 class="card-title">Enable AI Analysis</h4>
+                                <p class="card-subtitle">Unlock advanced accessibility checks</p>
+                            </div>
+                            <label class="premium-switch">
                                 <input type="checkbox" id="aiOptToggle">
-                                <span class="slider round"></span>
+                                <span class="premium-slider"></span>
                             </label>
                         </div>
-                        <p class="setting-description">Show AI analysis tools for accessibility testing</p>
                     </div>
 
-                    <div class="settings-section">
-                        <div class="settings-section-title">Gemini API Key</div>
-                        <input type="password" id="geminiApiKey" class="api-key-input"
-                            placeholder="Enter your Gemini API key">
-                        <div class="settings-actions">
-                            <button id="saveApiKey" class="action-button primary">Save Key</button>
+                    <!-- Provider Selection Card -->
+                    <div class="config-card">
+                        <h4 class="card-title">AI Engine</h4>
+                        <div class="select-wrapper">
+                            <select id="aiProviderSelect" class="premium-select">
+                                <option value="gemini">Google Gemini AI</option>
+                                <option value="vertex">Google Vertex AI (GCP)</option>
+                                <option value="openai">OpenAI (GPT Models)</option>
+                            </select>
+                        </div>
+                        <div class="card-actions">
+                            <button id="saveProviderSettings" class="premium-btn primary">Update Provider</button>
                         </div>
                     </div>
 
-                    <div class="settings-section">
-                        <div class="settings-section-title">Accessibility Rules</div>
-                        <div id="rulesList"></div>
-                        <div class="settings-actions">
-                            <button id="addRuleBtn" class="action-button primary">Add Rule</button>
+                    <!-- Gemini Configuration Section -->
+                    <div id="geminiSettings" class="provider-config-section">
+                        <div class="config-card accent-gemini">
+                            <h4 class="card-title">Gemini Settings</h4>
+                            <div class="input-group">
+                                <label>API Key</label>
+                                <input type="password" id="geminiApiKey" class="premium-input"
+                                    placeholder="Paste your API key here">
+                            </div>
+                            <div class="input-group">
+                                <label>Model</label>
+                                <select id="geminiModelSelect" class="premium-select">
+                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                </select>
+                            </div>
+                            <div class="card-actions">
+                                <button id="saveApiKey" class="premium-btn secondary">Save configuration</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <!-- Rule Dialog -->
-            <div class="rule-dialog" id="ruleDialog">
-                <div class="rule-dialog-content">
-                    <div class="rule-dialog-header">
-                        <h3 id="ruleDialogTitle">Add Rule</h3>
+                    <!-- Vertex AI Configuration Section -->
+                    <div id="vertexSettings" class="provider-config-section" style="display: none;">
+                        <div class="config-card accent-vertex">
+                            <h4 class="card-title">Vertex AI Settings</h4>
+                            <div class="input-group">
+                                <label>Project ID</label>
+                                <input type="text" id="vertexProjectId" class="premium-input"
+                                    placeholder="GCP Project ID">
+                            </div>
+                            <div class="input-group">
+                                <label>Location</label>
+                                <input type="text" id="vertexLocation" class="premium-input" value="us-central1">
+                            </div>
+                            <div class="input-group">
+                                <label>API Key</label>
+                                <input type="password" id="vertexApiKey" class="premium-input"
+                                    placeholder="Cloud API Key">
+                            </div>
+                            <div class="input-group">
+                                <label>Model</label>
+                                <select id="vertexModelSelect" class="premium-select">
+                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                </select>
+                            </div>
+                            <div class="card-actions">
+                                <button id="saveVertexSettings" class="premium-btn secondary">Save Vertex
+                                    configuration</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="rule-dialog-body">
-                        <form id="ruleForm">
-                            <input type="hidden" id="ruleId">
-                            <div class="rule-form-group">
-                                <label for="ruleName">Rule Name</label>
-                                <input type="text" id="ruleName" required>
+
+                    <!-- OpenAI Configuration Section -->
+                    <div id="openaiSettings" class="provider-config-section" style="display: none;">
+                        <div class="config-card accent-openai">
+                            <h4 class="card-title">OpenAI Settings</h4>
+                            <div class="input-group">
+                                <label>API Key</label>
+                                <input type="password" id="openaiApiKey" class="premium-input" placeholder="sk-...">
                             </div>
-                            <div class="rule-form-group">
-                                <label for="ruleDescription">Description</label>
-                                <textarea id="ruleDescription" required></textarea>
+                            <div class="input-group">
+                                <label>Model</label>
+                                <select id="openaiModelSelect" class="premium-select">
+                                    <option value="gpt-4o">gpt-4o</option>
+                                    <option value="gpt-4o-mini">gpt-4o-mini</option>
+                                    <option value="o1-preview">o1-preview</option>
+                                    <option value="o1-mini">o1-mini</option>
+                                </select>
                             </div>
-                            <div class="rule-form-group">
-                                <label for="ruleDetails">Details</label>
-                                <textarea id="ruleDetails"></textarea>
+                            <div class="card-actions">
+                                <button id="saveOpenAISettings" class="premium-btn secondary">Save OpenAI
+                                    configuration</button>
                             </div>
-                            <div class="rule-form-group">
-                                <label>Criteria</label>
-                                <div class="rule-criteria-list" id="ruleCriteriaList"></div>
-                                <div style="display: flex; align-items: center;">
-                                    <input type="text" id="newCriterion" class="add-criteria-input"
-                                        placeholder="Add new criterion">
-                                    <button type="button" id="addCriterionBtn" class="add-criteria-btn">+</button>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="rule-dialog-footer">
-                        <button id="cancelRuleBtn" class="action-button secondary">Cancel</button>
-                        <button id="saveRuleBtn" class="action-button primary">Save Rule</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -511,6 +551,7 @@
                                         <button id="statusNotValid" class="status-btn secondary">INV</button>
                                         <button id="statusNeedsReview" class="status-btn review">REV</button>
                                         <button id="statusSkip" class="status-btn skip">SKIP</button>
+                                        <button id="statusNotViolation" class="status-btn info">Not a Violation</button>
                                     </div>
                                     <!-- Comments Field - Inside the collapsible section -->
                                     <div class="comments-field">
@@ -546,19 +587,19 @@
 
                                 <!-- AI rule selector remains in header -->
                                 <div class="header-actions">
-                                    <div class="ai-rule-selector-inline">
-                                        <select id="accessibilityRuleSelect">
-                                            <option value="">Select rule...</option>
-                                        </select>
-                                        <button id="analyzeWithAI" class="ai-analyze-btn" disabled>
-                                            <span class="magic-icon">
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                                                    <path
-                                                        d="M12 2L9.91 7.36 4 8.09l4.55 3.8L7.47 18 12 15.27 16.53 18l-1.08-6.11L20 8.09l-5.91-.73L12 2z" />
-                                                </svg>
-                                            </span>
-                                            <span>Analyze with AI</span>
-                                        </button>
+                                    <div class="ai-rule-selector-inline"
+                                        style="display: flex; align-items: center; gap: 10px;">
+                                        <label for="evaluateUsingAi"
+                                            style="display:flex; align-items:center; gap: 4px; font-weight: 500;">
+                                            <input type="checkbox" id="evaluateUsingAi"> Evaluate using AI
+                                        </label>
+                                        <div id="aiRoleSelection" style="display: none; align-items: center; gap: 5px;">
+                                            <select id="accessibilityRuleSelect"
+                                                style="padding: 4px; border-radius: 4px; border: 1px solid var(--border-color);">
+                                                <option value="role-required">Role Required</option>
+                                            </select>
+                                            <button id="analyzeWithAI" style="display:none;"></button>
+                                        </div>
                                     </div>
                                     <button class="collapse-btn" id="aiCollapseBtn">
                                         <svg class="collapse-icon" xmlns="http://www.w3.org/2000/svg" width="16"
@@ -570,7 +611,16 @@
                                 </div>
                             </div>
                             <div class="collapsible-content" id="aiAnalysisContent">
-                                <p>Select a rule and click "Analyze" to get AI-powered accessibility feedback.</p>
+                                <div id="aiAnalysisFeedback" class="ai-analysis-feedback idle" aria-live="polite">
+                                    <div class="ai-analysis-feedback-row">
+                                        <span class="ai-analysis-spinner" aria-hidden="true"></span>
+                                        <span id="aiAnalysisStatusText">AI idle. Enable evaluation to start.</span>
+                                    </div>
+                                    <div id="aiAnalysisTriggerText" class="ai-analysis-trigger">Trigger: waiting</div>
+                                </div>
+                                <p>Check "Evaluate using AI", select a rule, and the AI will analyze the element
+                                    automatically.</p>
+                                <div id="aiAnalysisResult"></div>
                             </div>
                         </div>
                     </div>
@@ -643,6 +693,7 @@
         });
     </script>
     <script src="../src/utils/csvUtils.js"></script>
+    <script src="../src/utils/prompts/roleRequiredPrompt.js"></script>
     <script src="../src/utils/ai.js"></script>
     <script src="../src/utils/aiUIHandler.js"></script>
     <script src="../src/panel/panel.js"></script>

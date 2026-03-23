@@ -9,7 +9,17 @@
     });
 
     window.renderAIAnalysisResult = function (result, container) {
-        if (!result || !result.result) {
+        if (!result) {
+            container.innerHTML = '<p style="color: #d93025;">Analysis failed: No result data received.</p>';
+            return;
+        }
+
+        if (result.success === false) {
+            container.innerHTML = `<p style="color: #d93025;">Analysis failed: ${result.error || 'Unknown error'}</p>`;
+            return;
+        }
+
+        if (!result.result) {
             container.innerHTML = '<p style="color: #d93025;">Analysis failed: No result data received.</p>';
             return;
         }
@@ -220,27 +230,21 @@
         }
 
         function initializeAIPanel() {
-            const analyzeWithAI = document.getElementById('analyzeWithAI');
-            const accessibilityRuleSelect = document.getElementById('accessibilityRuleSelect');
+            const evaluateUsingAi = document.getElementById('evaluateUsingAi');
+            const aiRoleSelection = document.getElementById('aiRoleSelection');
 
-            if (analyzeWithAI) {
-                analyzeWithAI.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                    expandCollapseManager.expandSection('aiAnalysisPanel');
-                    if (aiAnalysisPanel) {
-                        setTimeout(function () {
-                            aiAnalysisPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }, 100);
-                    }
-                });
-            }
+            if (evaluateUsingAi && aiRoleSelection) {
+                // Restore state
+                const isAiEnabled = localStorage.getItem('evaluateUsingAi') === 'true';
+                evaluateUsingAi.checked = isAiEnabled;
+                aiRoleSelection.style.display = isAiEnabled ? 'flex' : 'none';
 
-            if (accessibilityRuleSelect) {
-                accessibilityRuleSelect.addEventListener('change', function (e) {
-                    e.stopPropagation();
-                    if (analyzeWithAI) {
-                        analyzeWithAI.disabled = !this.value;
-                    }
+                evaluateUsingAi.addEventListener('change', function () {
+                    const isChecked = this.checked;
+                    aiRoleSelection.style.display = isChecked ? 'flex' : 'none';
+                    
+                    // Save state
+                    localStorage.setItem('evaluateUsingAi', isChecked.toString());
                 });
             }
         }

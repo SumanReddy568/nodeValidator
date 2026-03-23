@@ -189,3 +189,12 @@
         opacity: 1;
     }
 }
+
+.nv-interactive-highlight {
+    outline: 4px solid #93eb59 !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 0 2px #b61212, 0 0 8px rgba(71, 118, 230, 0.4) !important;
+    position: relative !important;
+    z-index: 9997 !important;
+    transition: outline 0.2s ease-in-out !important;
+}

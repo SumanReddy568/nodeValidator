@@ -14,7 +14,8 @@ console.log('Node Validator Content Script loaded');
             NotFound: 'Not Found',
             NotValid: 'Not Valid',
             NeedsReview: 'Needs Review',
-            Pending: 'Pending'
+            Pending: 'Pending',
+            NotViolation: 'Not a Violation' // Added
         };
     }
 
@@ -46,6 +47,113 @@ console.log('Node Validator Content Script loaded');
             });
             sendResponse({ success: true });
             return true;
+        }
+
+        if (message.action === 'GET_CAPTURE_DIMENSIONS') {
+            const doc = document.documentElement;
+            const body = document.body;
+            sendResponse({
+                success: true,
+                fullWidth: Math.max(doc.scrollWidth, body ? body.scrollWidth : 0, doc.clientWidth),
+                fullHeight: Math.max(doc.scrollHeight, body ? body.scrollHeight : 0, doc.clientHeight),
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
+                scrollX: window.scrollX,
+                scrollY: window.scrollY,
+                devicePixelRatio: window.devicePixelRatio || 1
+            });
+            return true;
+        }
+
+        if (message.action === 'SCROLL_TO_CAPTURE_POSITION') {
+            const x = Number(message.payload?.x || 0);
+            const y = Number(message.payload?.y || 0);
+
+            window.scrollTo(x, y);
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    sendResponse({
+                        success: true,
+                        scrollX: window.scrollX,
+                        scrollY: window.scrollY,
+                        viewportWidth: window.innerWidth,
+                        viewportHeight: window.innerHeight
+                    });
+                });
+            });
+
+            return true;
+        }
+
+        // Track if an interactive check is already running in this tab
+        if (window.isInteractiveCheckRunning) {
+            sendResponse({ success: true, count: 0, message: 'Check already running' });
+            return true;
+        }
+
+        if (message.action === 'RUN_INTERACTIVE_CHECK') {
+            try {
+                window.isInteractiveCheckRunning = true;
+                
+                // Find all elements and filter for interactivity/focusability
+                const allElements = document.querySelectorAll('*');
+                const interactiveElements = Array.from(allElements).filter(el => {
+                    if (el.tabIndex >= 0) return true;
+                    const tagName = el.tagName.toLowerCase();
+                    if (['button', 'input', 'select', 'textarea'].includes(tagName)) return true;
+                    if (tagName === 'a' && (el.hasAttribute('href') || el.hasAttribute('onclick'))) return true;
+                    const role = el.getAttribute('role');
+                    const interactiveRoles = ['button', 'link', 'checkbox', 'menuitem', 'tab', 'switch', 'radio', 'treeitem', 'option'];
+                    if (role && interactiveRoles.includes(role.toLowerCase())) return true;
+                    if (el.onclick || el.getAttribute('onclick')) return true;
+                    return false;
+                }).filter(el => {
+                    const style = window.getComputedStyle(el);
+                    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+                });
+
+                // Clear previous highlights
+                document.querySelectorAll('.nv-interactive-highlight').forEach(el => {
+                    el.classList.remove('nv-interactive-highlight');
+                });
+
+                // MARK ALL IMMEDIATELY so the user doesn't have to wait for the sequence to see them
+                interactiveElements.forEach(el => {
+                    el.classList.add('nv-interactive-highlight');
+                });
+
+                sendResponse({ success: true, count: interactiveElements.length });
+
+                // Fast sequence through elements to show focus order
+                let i = 0;
+                function highlightNext() {
+                    if (i < interactiveElements.length) {
+                        const el = interactiveElements[i];
+                        try {
+                            el.focus({ preventScroll: true }); // Prevent jumping too much
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        } catch (e) {}
+                        i++;
+                        setTimeout(highlightNext, 100); // Faster 100ms delay
+                    } else {
+                        window.isInteractiveCheckRunning = false;
+                    }
+                }
+
+                if (interactiveElements.length > 0) {
+                    highlightNext();
+                } else {
+                    window.isInteractiveCheckRunning = false;
+                }
+                
+                return true;
+            } catch (error) {
+                window.isInteractiveCheckRunning = false;
+                console.error('Error in interactive check:', error);
+                sendResponse({ success: false, error: error.message });
+                return true;
+            }
         }
 
         if (message.action === 'HIGHLIGHT_NODE') {
@@ -80,8 +188,14 @@ console.log('Node Validator Content Script loaded');
                     console.log(`Found ${elements.length} elements matching "${targetNode}"`);
 
                     try {
-                        highlightElements(elements);
                         scrollToElement(elements[0]);
+                        setTimeout(() => {
+                            try {
+                                highlightElements(elements);
+                            } catch (highlightError) {
+                                console.error('Error in delayed highlight operation:', highlightError);
+                            }
+                        }, 250);
                     } catch (highlightError) {
                         console.error('Error in highlight operation:', highlightError);
                     }
@@ -174,6 +288,7 @@ console.log('Node Validator Content Script loaded');
                 }
             } catch (e) {
                 console.warn('querySelector failed:', e);
+                return null; // Return null to indicate failure
             }
 
             // Try with JavaScript evaluation if it looks like a JavaScript expression
@@ -404,6 +519,7 @@ console.log('Node Validator Content Script loaded');
                 });
 
                 try {
+                    const rect = element.getBoundingClientRect();
                     chrome.runtime.sendMessage({
                         action: 'ELEMENT_DETAILS',
                         payload: {
@@ -413,6 +529,15 @@ console.log('Node Validator Content Script loaded');
                             attributes: nodeAttributes,
                             accessibility: nodeAccessibility,
                             cssProperties: nodeCssProperties,
+                            screenshotTarget: {
+                                x: rect.left,
+                                y: rect.top,
+                                width: rect.width,
+                                height: rect.height,
+                                viewportWidth: window.innerWidth,
+                                viewportHeight: window.innerHeight,
+                                devicePixelRatio: window.devicePixelRatio || 1
+                            },
                             // inlineEvents
                         }
                     });

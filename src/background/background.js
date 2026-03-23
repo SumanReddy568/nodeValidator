@@ -4,14 +4,17 @@ let validationTabId = null; // Track the tab being used for validation
 let validationActive = false; // Add a flag to track active validation
 let automatedMode = false; // Flag to track if we're in automated mode
 let lastUrl = null; // Track the last URL loaded in the validation tab
+let lastCaptureTime = 0; // Track the last time a screenshot was captured
+const CAPTURE_RATE_LIMIT = 100; // Reduced to 100ms from 1000ms
 
 const NodeStatus = {
     TruePositive: 'True Positive',
     FalsePositive: 'False Positive',
     FalseNegative: 'False Negative',
     NotValid: 'Not Valid',
-    NeedsReview: 'Needs Review', // Added
-    Pending: 'Pending'
+    NeedsReview: 'Needs Review',
+    Pending: 'Pending',
+    NotViolation: 'Not a Violation'
 };
 
 // Add these variables for keepalive functionality
@@ -46,6 +49,66 @@ chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
     startKeepAlive();
 
     switch (message.action) {
+        case 'CAPTURE_VISIBLE_TAB_SCREENSHOT': {
+            const now = Date.now();
+            if (now - lastCaptureTime < CAPTURE_RATE_LIMIT) {
+                sendResponse({ success: false, error: "Screenshot request throttled" });
+                return true;
+            }
+            lastCaptureTime = now;
+
+            const resolveTab = () => new Promise((resolve, reject) => {
+                if (validationTabId !== null) {
+                    chrome.tabs.get(validationTabId, (tab) => {
+                        if (chrome.runtime.lastError || !tab) {
+                            reject(new Error(chrome.runtime.lastError?.message || 'Validation tab is unavailable'));
+                            return;
+                        }
+                        resolve(tab);
+                    });
+                    return;
+                }
+
+                chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                    if (chrome.runtime.lastError) {
+                        reject(new Error(chrome.runtime.lastError.message));
+                        return;
+                    }
+
+                    if (!tabs || tabs.length === 0) {
+                        reject(new Error('No active tab available for screenshot capture'));
+                        return;
+                    }
+
+                    resolve(tabs[0]);
+                });
+            });
+
+            resolveTab()
+                .then((tab) => new Promise((resolve, reject) => {
+                    chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' }, (dataUrl) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                            return;
+                        }
+
+                        if (!dataUrl) {
+                            reject(new Error('Failed to capture visible tab screenshot'));
+                            return;
+                        }
+
+                        resolve({ dataUrl, windowId: tab.windowId, tabId: tab.id });
+                    });
+                }))
+                .then((result) => sendResponse({ success: true, ...result }))
+                .catch((error) => {
+                    console.error('Failed to capture screenshot:', error);
+                    sendResponse({ success: false, error: error.message || 'Failed to capture screenshot' });
+                });
+
+            return true;
+        }
+
         case 'UPLOAD_CSV':
             validationData = message.payload;
             automatedMode = false;
