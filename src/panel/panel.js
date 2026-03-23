@@ -25,6 +25,9 @@ let currentElementData = {
   accessibility: "",
   cssProperties: "",
   attributes: "",
+  screenshotTarget: null,
+  screenshotDataUrl: null,
+  contextScreenshotDataUrl: null,
 };
 
 let processingNextUrl = false;
@@ -590,6 +593,9 @@ function initializePanel() {
       accessibility: payload.accessibility || "",
       cssProperties: payload.cssProperties || "",
       attributes: payload.attributes || "",
+      screenshotTarget: payload.screenshotTarget || null,
+      screenshotDataUrl: null,
+      contextScreenshotDataUrl: null,
     };
   }
 
@@ -623,7 +629,237 @@ function initializePanel() {
     }
   }
 
-  function triggerCurrentElementAIAnalysis(triggerSource = "element update") {
+  function requestVisibleTabScreenshot() {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { action: "CAPTURE_VISIBLE_TAB_SCREENSHOT" },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+
+          if (!response?.success || !response.dataUrl) {
+            reject(
+              new Error(response?.error || "Visible tab screenshot capture failed"),
+            );
+            return;
+          }
+
+          resolve(response.dataUrl);
+        },
+      );
+    });
+  }
+
+  function getCaptureTabId() {
+    return new Promise((resolve, reject) => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+
+        if (!tabs || tabs.length === 0 || typeof tabs[0].id !== "number") {
+          reject(new Error("No active tab available for capture"));
+          return;
+        }
+
+        resolve(tabs[0].id);
+      });
+    });
+  }
+
+  function sendMessageToCaptureTab(tabId, action, payload = {}) {
+    return new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(tabId, { action, payload }, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+
+        if (!response?.success) {
+          reject(new Error(response?.error || `${action} failed`));
+          return;
+        }
+
+        resolve(response);
+      });
+    });
+  }
+
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function loadImageFromDataUrl(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Failed to load screenshot image"));
+      image.src = dataUrl;
+    });
+  }
+
+  async function cropScreenshotForElement(screenshotDataUrl, screenshotTarget) {
+    if (!screenshotTarget) {
+      return null;
+    }
+
+    const image = await loadImageFromDataUrl(screenshotDataUrl);
+    const viewportWidth = screenshotTarget.viewportWidth || window.innerWidth;
+    const viewportHeight = screenshotTarget.viewportHeight || window.innerHeight;
+
+    if (!viewportWidth || !viewportHeight) {
+      return null;
+    }
+
+    const scaleX = image.naturalWidth / viewportWidth;
+    const scaleY = image.naturalHeight / viewportHeight;
+    const padding = 16;
+
+    const cropX = Math.max(0, (screenshotTarget.x - padding) * scaleX);
+    const cropY = Math.max(0, (screenshotTarget.y - padding) * scaleY);
+    const cropWidth = Math.max(
+      1,
+      Math.min(
+        image.naturalWidth - cropX,
+        (screenshotTarget.width + padding * 2) * scaleX,
+      ),
+    );
+    const cropHeight = Math.max(
+      1,
+      Math.min(
+        image.naturalHeight - cropY,
+        (screenshotTarget.height + padding * 2) * scaleY,
+      ),
+    );
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(cropWidth);
+    canvas.height = Math.round(cropHeight);
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return null;
+    }
+
+    context.drawImage(
+      image,
+      cropX,
+      cropY,
+      cropWidth,
+      cropHeight,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+
+    return canvas.toDataURL("image/jpeg", 0.9);
+  }
+
+  async function prepareElementScreenshotForAI() {
+    if (!currentElementData.screenshotTarget) {
+      return null;
+    }
+
+    const visibleTabScreenshot = await requestVisibleTabScreenshot();
+    const croppedScreenshot = await cropScreenshotForElement(
+      visibleTabScreenshot,
+      currentElementData.screenshotTarget,
+    );
+
+    currentElementData.screenshotDataUrl = croppedScreenshot;
+    return croppedScreenshot;
+  }
+
+  async function stitchFullPageScreenshot(tiles, metrics) {
+    if (!tiles.length) {
+      return null;
+    }
+
+    const MAX_CONTEXT_DIMENSION = 1800;
+    const scale = Math.min(
+      1,
+      MAX_CONTEXT_DIMENSION / Math.max(metrics.fullWidth, metrics.fullHeight, 1),
+    );
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(metrics.fullWidth * scale));
+    canvas.height = Math.max(1, Math.round(metrics.fullHeight * scale));
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      return null;
+    }
+
+    for (const tile of tiles) {
+      const image = await loadImageFromDataUrl(tile.dataUrl);
+      const drawX = Math.round(tile.x * scale);
+      const drawY = Math.round(tile.y * scale);
+      const drawWidth = Math.round(metrics.viewportWidth * scale);
+      const drawHeight = Math.round(metrics.viewportHeight * scale);
+      context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+    }
+
+    return canvas.toDataURL("image/jpeg", 0.82);
+  }
+
+  async function prepareFullPageContextScreenshotForAI() {
+    const tabId = await getCaptureTabId();
+    const metrics = await sendMessageToCaptureTab(tabId, "GET_CAPTURE_DIMENSIONS");
+
+    const xPositions = [];
+    const yPositions = [];
+
+    for (let x = 0; x < metrics.fullWidth; x += metrics.viewportWidth) {
+      xPositions.push(Math.min(x, Math.max(metrics.fullWidth - metrics.viewportWidth, 0)));
+    }
+    for (let y = 0; y < metrics.fullHeight; y += metrics.viewportHeight) {
+      yPositions.push(Math.min(y, Math.max(metrics.fullHeight - metrics.viewportHeight, 0)));
+    }
+
+    const uniqueX = [...new Set(xPositions)];
+    const uniqueY = [...new Set(yPositions)];
+    const tiles = [];
+    const seenPositions = new Set();
+
+    try {
+      for (const y of uniqueY) {
+        for (const x of uniqueX) {
+          const position = await sendMessageToCaptureTab(tabId, "SCROLL_TO_CAPTURE_POSITION", {
+            x,
+            y,
+          });
+          await delay(120);
+          const key = `${position.scrollX}:${position.scrollY}`;
+          if (seenPositions.has(key)) {
+            continue;
+          }
+
+          seenPositions.add(key);
+          const dataUrl = await requestVisibleTabScreenshot();
+          tiles.push({
+            x: position.scrollX,
+            y: position.scrollY,
+            dataUrl,
+          });
+        }
+      }
+    } finally {
+      await sendMessageToCaptureTab(tabId, "SCROLL_TO_CAPTURE_POSITION", {
+        x: metrics.scrollX,
+        y: metrics.scrollY,
+      }).catch(() => {});
+    }
+
+    const contextScreenshot = await stitchFullPageScreenshot(tiles, metrics);
+    currentElementData.contextScreenshotDataUrl = contextScreenshot;
+    return contextScreenshot;
+  }
+
+  async function triggerCurrentElementAIAnalysis(triggerSource = "element update") {
     const evaluateCheckbox = document.getElementById("evaluateUsingAi");
 
     if (!evaluateCheckbox) {
@@ -692,8 +928,39 @@ function initializePanel() {
       `;
     }
 
+    let screenshotDataUrl = null;
+    let contextScreenshotDataUrl = null;
+    try {
+      setAIAnalysisFeedback(
+        "loading",
+        `Capturing element screenshot for ${ruleId} analysis...`,
+        `${triggerSource}`,
+      );
+      screenshotDataUrl = await prepareElementScreenshotForAI();
+      setAIAnalysisFeedback(
+        "loading",
+        `Capturing full-page context screenshot for ${ruleId} analysis...`,
+        `${triggerSource}`,
+      );
+      contextScreenshotDataUrl = await prepareFullPageContextScreenshotForAI();
+      setAIAnalysisFeedback(
+        "loading",
+        `Running AI analysis for ${ruleId} with visual context...`,
+        `${triggerSource}`,
+      );
+    } catch (screenshotError) {
+      console.warn("Element screenshot capture failed:", screenshotError);
+      setAIAnalysisFeedback(
+        "loading",
+        `Running AI analysis for ${ruleId} with available visual inputs only...`,
+        `${triggerSource}; screenshot unavailable: ${screenshotError.message}`,
+      );
+    }
+
     window.aiAnalyzer
-      .analyzeElement(currentElementData)
+      .analyzeElement(currentElementData, {
+        imageDataUrls: [screenshotDataUrl, contextScreenshotDataUrl].filter(Boolean),
+      })
       .then((result) => {
         if (result?.success === false) {
           setAIAnalysisFeedback(

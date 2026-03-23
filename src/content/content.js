@@ -48,6 +48,43 @@ console.log('Node Validator Content Script loaded');
             return true;
         }
 
+        if (message.action === 'GET_CAPTURE_DIMENSIONS') {
+            const doc = document.documentElement;
+            const body = document.body;
+            sendResponse({
+                success: true,
+                fullWidth: Math.max(doc.scrollWidth, body ? body.scrollWidth : 0, doc.clientWidth),
+                fullHeight: Math.max(doc.scrollHeight, body ? body.scrollHeight : 0, doc.clientHeight),
+                viewportWidth: window.innerWidth,
+                viewportHeight: window.innerHeight,
+                scrollX: window.scrollX,
+                scrollY: window.scrollY,
+                devicePixelRatio: window.devicePixelRatio || 1
+            });
+            return true;
+        }
+
+        if (message.action === 'SCROLL_TO_CAPTURE_POSITION') {
+            const x = Number(message.payload?.x || 0);
+            const y = Number(message.payload?.y || 0);
+
+            window.scrollTo(x, y);
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    sendResponse({
+                        success: true,
+                        scrollX: window.scrollX,
+                        scrollY: window.scrollY,
+                        viewportWidth: window.innerWidth,
+                        viewportHeight: window.innerHeight
+                    });
+                });
+            });
+
+            return true;
+        }
+
         // Track if an interactive check is already running in this tab
         if (window.isInteractiveCheckRunning) {
             sendResponse({ success: true, count: 0, message: 'Check already running' });
@@ -150,8 +187,14 @@ console.log('Node Validator Content Script loaded');
                     console.log(`Found ${elements.length} elements matching "${targetNode}"`);
 
                     try {
-                        highlightElements(elements);
                         scrollToElement(elements[0]);
+                        setTimeout(() => {
+                            try {
+                                highlightElements(elements);
+                            } catch (highlightError) {
+                                console.error('Error in delayed highlight operation:', highlightError);
+                            }
+                        }, 250);
                     } catch (highlightError) {
                         console.error('Error in highlight operation:', highlightError);
                     }
@@ -474,6 +517,7 @@ console.log('Node Validator Content Script loaded');
                 });
 
                 try {
+                    const rect = element.getBoundingClientRect();
                     chrome.runtime.sendMessage({
                         action: 'ELEMENT_DETAILS',
                         payload: {
@@ -483,6 +527,15 @@ console.log('Node Validator Content Script loaded');
                             attributes: nodeAttributes,
                             accessibility: nodeAccessibility,
                             cssProperties: nodeCssProperties,
+                            screenshotTarget: {
+                                x: rect.left,
+                                y: rect.top,
+                                width: rect.width,
+                                height: rect.height,
+                                viewportWidth: window.innerWidth,
+                                viewportHeight: window.innerHeight,
+                                devicePixelRatio: window.devicePixelRatio || 1
+                            },
                             // inlineEvents
                         }
                     });

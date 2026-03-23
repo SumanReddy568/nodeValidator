@@ -23,17 +23,17 @@ ${elementData.cssProperties}
 **5. Other Attributes:**
 ${elementData.attributes}
 
-(Note: A screenshot of the element in its context is also provided to help determine visual appearance, interactability, and context.)
+(Note: Visual inputs may also be attached when available as base64-encoded image inputs: a cropped screenshot of the target element and a full-page context screenshot.)
 
 # INSTRUCTIONS
 ---
 Your analysis must be methodical and precise.
 1. **Evaluate:** Determine if the Target HTML Element needs a specific explicit ARIA role based on its tag and attributes, and whether it correctly implements it or natively has it (e.g., a native <button> implicitly has the 'button' role).
 2. Look at its accessibility properties: does it have the required ARIA role or native HTML equivalent? 
-3. Look at interactability: is it focusable? Does it have a valid tab index if it's an interactive role like 'button' or 'link'?
+3. Look at intractability: is it focusable? Does it have a valid tab index if it's an interactive role like 'button' or 'link'?
 4. **Pass/Fail:** Assign a final status of "PASS" or "FAIL".
-   - **PASS:** The element fully meets the requirement for having the proper role and interactability state.
-   - **FAIL:** The element is missing the required role, has an incorrect role, or lacks interactability/focusability for its intended form/function.
+   - **PASS:** The element fully meets the requirement for having the proper role and intractability state.
+   - **FAIL:** The element is missing the required role, has an incorrect role, or lacks intractability/focusability for its intended form/function.
 5. **Summary & Details:** Provide a concise summary and a detailed technical explanation referencing the code.
 6. **Suggestions:** Provide an actionable code snippet to fix any issues.
 
