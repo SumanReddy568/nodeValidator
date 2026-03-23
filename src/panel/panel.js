@@ -184,6 +184,43 @@ function initializePanel() {
   const newRunButton = document.getElementById("newRunButton");
   const startIndexInput = document.getElementById("startIndex");
   const totalIndexCountEl = document.getElementById("totalIndexCount");
+  const runInteractiveCheckBtn = document.getElementById("runInteractiveCheck");
+
+  if (runInteractiveCheckBtn) {
+    runInteractiveCheckBtn.onclick = function () {
+      runInteractiveCheckBtn.disabled = true;
+      runInteractiveCheckBtn.textContent = "Checking...";
+
+      chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+        if (tabs && tabs[0]) {
+          chrome.tabs.sendMessage(
+            tabs[0].id,
+            { action: "RUN_INTERACTIVE_CHECK" },
+            function (response) {
+              runInteractiveCheckBtn.disabled = false;
+              runInteractiveCheckBtn.textContent = "RUN Interactive Check";
+              if (response && response.success) {
+                showNotification(
+                  `Found ${response.count} focusable elements. Highlights will stay visible.`,
+                  "success",
+                );
+              } else {
+                showNotification(
+                  "Interactive check failed: " +
+                    (response?.error || "Unknown error"),
+                  "error",
+                );
+              }
+            },
+          );
+        } else {
+          runInteractiveCheckBtn.disabled = false;
+          runInteractiveCheckBtn.textContent = "RUN Interactive Check";
+          showNotification("No active tab found.", "error");
+        }
+      });
+    };
+  }
 
   // Summary Elements
   const totalUrlsEl = document.getElementById("totalUrls");
@@ -265,7 +302,7 @@ function initializePanel() {
           }
 
           // Preview the status change in stats
-          previewStatusChange(buttonId);
+          previewStatusChange(buttonId)
         };
       }
     });
@@ -2748,12 +2785,17 @@ async function initializeAIFeatures() {
   if (settingsMenuButton && settingsMenu) {
     settingsMenuButton.addEventListener("click", function () {
       settingsMenu.classList.toggle("open");
-
-      // Refresh the rules list when opening the menu
       if (settingsMenu.classList.contains("open")) {
         populateRulesList();
       }
     });
+
+    const hideSettingsBtn = document.getElementById("hideSettingsBtn");
+    if (hideSettingsBtn) {
+      hideSettingsBtn.addEventListener("click", function () {
+        settingsMenu.classList.remove("open");
+      });
+    }
 
     // Close menu when clicking outside
     document.addEventListener("click", function (event) {
@@ -2830,37 +2872,58 @@ async function initializeAIFeatures() {
   const providerSelect = document.getElementById("aiProviderSelect");
   const geminiSettings = document.getElementById("geminiSettings");
   const vertexSettings = document.getElementById("vertexSettings");
+  const openaiSettings = document.getElementById("openaiSettings");
 
-  if (providerSelect && geminiSettings && vertexSettings) {
+  if (providerSelect && geminiSettings && vertexSettings && openaiSettings) {
     providerSelect.addEventListener("change", function () {
       const selectedProvider = providerSelect.value;
+      
+      geminiSettings.style.display = selectedProvider === "gemini" ? "block" : "none";
+      vertexSettings.style.display = selectedProvider === "vertex" ? "block" : "none";
+      openaiSettings.style.display = selectedProvider === "openai" ? "block" : "none";
+    });
+  }
 
-      if (selectedProvider === "gemini") {
-        geminiSettings.style.display = "block";
-        vertexSettings.style.display = "none";
-      } else if (selectedProvider === "vertex") {
-        geminiSettings.style.display = "none";
-        vertexSettings.style.display = "block";
+  // Save OpenAI settings
+  const saveOpenAISettingsButton = document.getElementById("saveOpenAISettings");
+  if (saveOpenAISettingsButton) {
+    saveOpenAISettingsButton.addEventListener("click", function () {
+      const apiKeyInput = document.getElementById("openaiApiKey");
+      const apiKey = apiKeyInput.value.trim();
+
+      if (apiKey) {
+        window.aiAnalyzer.saveOpenAISettings(apiKey).then((result) => {
+          if (result.success) {
+            showNotification("OpenAI API key saved successfully", "success");
+          } else {
+            showNotification("Failed to save OpenAI API key: " + result.error, "error");
+          }
+        });
+      } else {
+        showNotification("Please enter a valid API key", "warning");
       }
     });
   }
 
   // Save provider settings
-  const saveProviderSettingsButton = document.getElementById(
-    "saveProviderSettings",
-  );
+  const saveProviderSettingsButton = document.getElementById("saveProviderSettings");
   if (saveProviderSettingsButton) {
     saveProviderSettingsButton.addEventListener("click", function () {
       const providerSelect = document.getElementById("aiProviderSelect");
       const selectedProvider = providerSelect.value;
 
-      let selectedModel;
+      let selectedModel = "";
       if (selectedProvider === "gemini") {
-        const modelSelect = document.getElementById("geminiModelSelect");
-        selectedModel = modelSelect.value;
+        selectedModel = document.getElementById("geminiModelSelect").value;
       } else if (selectedProvider === "vertex") {
-        const modelSelect = document.getElementById("vertexModelSelect");
-        selectedModel = modelSelect.value;
+        selectedModel = document.getElementById("vertexModelSelect").value;
+      } else if (selectedProvider === "openai") {
+        selectedModel = document.getElementById("openaiModelSelect").value;
+      }
+
+      if (!selectedModel) {
+          showNotification("Please select or type a model name", "warning");
+          return;
       }
 
       window.aiAnalyzer
@@ -2881,15 +2944,14 @@ async function initializeAIFeatures() {
     });
   }
 
-  // AI analysis UI is initialized by src/utils/aiUIHandler.js on DOMContentLoaded.
-
-  // Load API key from storage
+  // AI analysis UI is initialized by src/utils/aiUIHandler.js on DOMContentLoaded.  // Load AI settings from storage
   chrome.storage.local.get(
     [
       "geminiApiKey",
       "vertexProjectId",
       "vertexLocation",
-      "vertexServiceAccount",
+      "vertexApiKey",
+      "openaiApiKey",
       "aiProvider",
       "aiModel",
     ],
@@ -2897,38 +2959,33 @@ async function initializeAIFeatures() {
       // Load Gemini settings
       if (result.geminiApiKey) {
         const apiKeyInput = document.getElementById("geminiApiKey");
-        if (apiKeyInput) {
-          apiKeyInput.value = result.geminiApiKey;
-        }
+        if (apiKeyInput) apiKeyInput.value = result.geminiApiKey;
       }
 
       // Load Vertex AI settings
       if (result.vertexProjectId) {
         const projectIdInput = document.getElementById("vertexProjectId");
-        if (projectIdInput) {
-          projectIdInput.value = result.vertexProjectId;
-        }
+        if (projectIdInput) projectIdInput.value = result.vertexProjectId;
       }
-
       if (result.vertexLocation) {
         const locationInput = document.getElementById("vertexLocation");
-        if (locationInput) {
-          locationInput.value = result.vertexLocation;
-        }
+        if (locationInput) locationInput.value = result.vertexLocation;
       }
-
-      if (result.vertexServiceAccount) {
+      if (result.vertexApiKey) {
         const vertexApiKeyInput = document.getElementById("vertexApiKey");
-        if (vertexApiKeyInput) {
-          vertexApiKeyInput.value = result.vertexServiceAccount;
-        }
+        if (vertexApiKeyInput) vertexApiKeyInput.value = result.vertexApiKey;
       }
 
-      // Load provider selection
+      // Load OpenAI settings
+      if (result.openaiApiKey) {
+        const openaiApiKeyInput = document.getElementById("openaiApiKey");
+        if (openaiApiKeyInput) openaiApiKeyInput.value = result.openaiApiKey;
+      }
+
+      // Load provider and model settings
       if (result.aiProvider) {
         const providerSelect = document.getElementById("aiProviderSelect");
         if (providerSelect) {
-          providerSelect.value = result.aiProvider;
 
           // Update UI visibility
           const geminiSettings = document.getElementById("geminiSettings");

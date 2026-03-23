@@ -48,6 +48,76 @@ console.log('Node Validator Content Script loaded');
             return true;
         }
 
+        // Track if an interactive check is already running in this tab
+        if (window.isInteractiveCheckRunning) {
+            sendResponse({ success: true, count: 0, message: 'Check already running' });
+            return true;
+        }
+
+        if (message.action === 'RUN_INTERACTIVE_CHECK') {
+            try {
+                window.isInteractiveCheckRunning = true;
+                
+                // Find all elements and filter for interactivity/focusability
+                const allElements = document.querySelectorAll('*');
+                const interactiveElements = Array.from(allElements).filter(el => {
+                    if (el.tabIndex >= 0) return true;
+                    const tagName = el.tagName.toLowerCase();
+                    if (['button', 'input', 'select', 'textarea'].includes(tagName)) return true;
+                    if (tagName === 'a' && (el.hasAttribute('href') || el.hasAttribute('onclick'))) return true;
+                    const role = el.getAttribute('role');
+                    const interactiveRoles = ['button', 'link', 'checkbox', 'menuitem', 'tab', 'switch', 'radio', 'treeitem', 'option'];
+                    if (role && interactiveRoles.includes(role.toLowerCase())) return true;
+                    if (el.onclick || el.getAttribute('onclick')) return true;
+                    return false;
+                }).filter(el => {
+                    const style = window.getComputedStyle(el);
+                    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+                });
+
+                // Clear previous highlights
+                document.querySelectorAll('.nv-interactive-highlight').forEach(el => {
+                    el.classList.remove('nv-interactive-highlight');
+                });
+
+                // MARK ALL IMMEDIATELY so the user doesn't have to wait for the sequence to see them
+                interactiveElements.forEach(el => {
+                    el.classList.add('nv-interactive-highlight');
+                });
+
+                sendResponse({ success: true, count: interactiveElements.length });
+
+                // Fast sequence through elements to show focus order
+                let i = 0;
+                function highlightNext() {
+                    if (i < interactiveElements.length) {
+                        const el = interactiveElements[i];
+                        try {
+                            el.focus({ preventScroll: true }); // Prevent jumping too much
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        } catch (e) {}
+                        i++;
+                        setTimeout(highlightNext, 100); // Faster 100ms delay
+                    } else {
+                        window.isInteractiveCheckRunning = false;
+                    }
+                }
+
+                if (interactiveElements.length > 0) {
+                    highlightNext();
+                } else {
+                    window.isInteractiveCheckRunning = false;
+                }
+                
+                return true;
+            } catch (error) {
+                window.isInteractiveCheckRunning = false;
+                console.error('Error in interactive check:', error);
+                sendResponse({ success: false, error: error.message });
+                return true;
+            }
+        }
+
         if (message.action === 'HIGHLIGHT_NODE') {
             const { targetNode, index, automated } = message.payload;
 

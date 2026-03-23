@@ -2,8 +2,6 @@
  * AI Analysis Module
  * * Provides accessibility analysis capabilities using AI (Gemini)
  */
-
-// Use an IIFE to prevent global variable collisions
 (function () {
     // Check if AIAnalyzer is already defined
     if (window.AIAnalyzer) {
@@ -24,10 +22,10 @@
                     name: 'Google Vertex AI',
                     projectId: null,
                     location: 'us-central1',
-                    apiKey: null, // Service account key JSON
-                    models: ['gemini-2.5-pro', 'gemini-2.5-flash']
+                    apiKey: null,
+                    models: ['gpt-4o', 'gpt-4o-mini', 'o1-preview', 'o1-mini']
                 }
-            };``
+            };
             this.currentProvider = 'gemini';
             this.currentModel = 'gemini-2.5-flash';
             this.rules = [];
@@ -53,12 +51,16 @@
                     'vertexProjectId',
                     'vertexLocation', 
                     'vertexServiceAccount',
+                    'openaiApiKey',
                     'aiProvider',
                     'aiModel',
                     'accessibilityRules'
                 ]);
                 
-                // Load provider-specific settings
+                if (storage.openaiApiKey) {
+                    this.providers.openai.apiKey = storage.openaiApiKey;
+                }
+                
                 if (storage.geminiApiKey) {
                     this.providers.gemini.apiKey = storage.geminiApiKey;
                 }
@@ -77,21 +79,16 @@
                 this.currentModel = storage.aiModel || this.providers[this.currentProvider].models[0];
                 
                 if (storage.accessibilityRules) {
-                    // Filter to only include the role-required rule as per the new approach
                     this.rules = storage.accessibilityRules.filter(r => r.id === 'role-required');
-                    
-                    // If after filtering we have no rules, or the role-required rule is missing, use defaults
                     if (this.rules.length === 0) {
                         this.rules = this.getDefaultRules();
                         await this.saveRules(this.rules);
                     }
                 } else {
-                    // Set some default rules if none are found
                     this.rules = this.getDefaultRules();
                     await this.saveRules(this.rules);
                 }
 
-                // Auto-set the current rule to 'role-required' if available
                 if (this.rules.length > 0) {
                     this.currentRule = this.rules[0];
                 }
@@ -455,6 +452,8 @@
                     apiResponse = await this.callGeminiAPI(prompt);
                 } else if (this.currentProvider === 'vertex') {
                     apiResponse = await this.callVertexAPI(prompt);
+                } else if (this.currentProvider === 'openai') {
+                    apiResponse = await this.callOpenAIAPI(prompt);
                 } else {
                     throw new Error(`Unsupported provider: ${this.currentProvider}`);
                 }
@@ -648,6 +647,62 @@
             } catch (error) {
                 console.error('Vertex AI API call failed:', error);
                 throw new Error(`Vertex AI API call failed: ${error.message}`);
+            }
+        }
+
+        /**
+         * Call OpenAI API
+         */
+        async callOpenAIAPI(prompt) {
+            try {
+                const startTime = performance.now();
+                const apiUrl = 'https://api.openai.com/v1/chat/completions';
+
+                const requestBody = {
+                    model: this.currentModel,
+                    messages: [{
+                        role: 'user',
+                        content: prompt
+                    }],
+                    temperature: 0.2,
+                    max_tokens: 2048
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${this.providers.openai.apiKey}`
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const endTime = performance.now();
+                const responseTime = (endTime - startTime).toFixed(2);
+
+                if (!response.ok) {
+                    throw new Error(`OpenAI API request failed with status ${response.status}: ${await response.text()}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+                    throw new Error('Unexpected OpenAI API response format: missing candidate text.');
+                }
+
+                const tokenCount = {
+                    input: data.usage?.prompt_tokens || 0,
+                    output: data.usage?.completion_tokens || 0
+                };
+
+                return {
+                    rawResponse: data.choices[0].message.content,
+                    responseTime: responseTime,
+                    tokenCount: tokenCount
+                };
+            } catch (error) {
+                console.error('OpenAI API call failed:', error);
+                throw new Error(`OpenAI API call failed: ${error.message}`);
             }
         }
     }
