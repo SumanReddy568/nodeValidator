@@ -189,11 +189,48 @@
                     </div>
 
                     <div class="settings-section">
-                        <div class="settings-section-title">Gemini API Key</div>
+                        <div class="settings-section-title">AI Provider</div>
+                        <select id="aiProviderSelect" class="provider-select">
+                            <option value="gemini">Google Gemini</option>
+                            <option value="vertex">Google Vertex AI</option>
+                        </select>
+                        <div class="settings-actions">
+                            <button id="saveProviderSettings" class="action-button primary">Save Provider</button>
+                        </div>
+                    </div>
+
+                    <!-- Gemini Settings -->
+                    <div class="settings-section" id="geminiSettings">
+                        <div class="settings-section-title">Gemini Configuration</div>
                         <input type="password" id="geminiApiKey" class="api-key-input"
                             placeholder="Enter your Gemini API key">
+                        <select id="geminiModelSelect" class="model-select">
+                            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                        </select>
                         <div class="settings-actions">
-                            <button id="saveApiKey" class="action-button primary">Save Key</button>
+                            <button id="saveApiKey" class="action-button primary">Save Gemini Key</button>
+                        </div>
+                    </div>
+
+                    <!-- Vertex AI Settings -->
+                    <div class="settings-section" id="vertexSettings" style="display: none;">
+                        <div class="settings-section-title">Vertex AI Configuration</div>
+                        <input type="text" id="vertexProjectId" class="api-key-input"
+                            placeholder="Enter your GCP Project ID">
+                        <input type="text" id="vertexLocation" class="api-key-input"
+                            placeholder="Enter location (e.g., us-central1)" value="us-central1">
+                        <input type="password" id="vertexApiKey" class="api-key-input"
+                            placeholder="Enter your Vertex AI API key">
+                        <select id="vertexModelSelect" class="model-select">
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                        </select>
+                        <div class="settings-actions">
+                            <button id="saveVertexSettings" class="action-button primary">Save Vertex Settings</button>
+                        </div>
+                        <p class="setting-description">Note: Vertex AI uses your GCP project for billing. Ensure proper authentication is configured.</p>
+                    </div>
                         </div>
                     </div>
 

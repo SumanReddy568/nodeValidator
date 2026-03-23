@@ -2298,16 +2298,86 @@ async function initializeAIFeatures() {
 
             if (apiKey) {
                 window.aiAnalyzer.saveApiKey(apiKey).then(result => {
-
                     if (result.success) {
-                        showNotification('API key saved successfully', 'success');
+                        showNotification('Gemini API key saved successfully', 'success');
                     } else {
-                        showNotification('Failed to save API key: ' + result.error, 'error');
+                        showNotification('Failed to save Gemini API key: ' + result.error, 'error');
                     }
                 });
             } else {
                 showNotification('Please enter a valid API key', 'warning');
             }
+        });
+    }
+
+    // Save Vertex AI settings
+    const saveVertexSettingsButton = document.getElementById('saveVertexSettings');
+    if (saveVertexSettingsButton) {
+        saveVertexSettingsButton.addEventListener('click', function () {
+            const projectIdInput = document.getElementById('vertexProjectId');
+            const locationInput = document.getElementById('vertexLocation');
+            const apiKeyInput = document.getElementById('vertexApiKey');
+            
+            const projectId = projectIdInput.value.trim();
+            const location = locationInput.value.trim() || 'us-central1';
+            const apiKey = apiKeyInput.value.trim();
+
+            if (projectId && apiKey) {
+                window.aiAnalyzer.saveVertexSettings(projectId, location, apiKey).then(result => {
+                    if (result.success) {
+                        showNotification('Vertex AI settings saved successfully', 'success');
+                    } else {
+                        showNotification('Failed to save Vertex AI settings: ' + result.error, 'error');
+                    }
+                });
+            } else {
+                showNotification('Please enter both Project ID and API key', 'warning');
+            }
+        });
+    }
+
+    // Provider selection
+    const providerSelect = document.getElementById('aiProviderSelect');
+    const geminiSettings = document.getElementById('geminiSettings');
+    const vertexSettings = document.getElementById('vertexSettings');
+    
+    if (providerSelect && geminiSettings && vertexSettings) {
+        providerSelect.addEventListener('change', function () {
+            const selectedProvider = providerSelect.value;
+            
+            if (selectedProvider === 'gemini') {
+                geminiSettings.style.display = 'block';
+                vertexSettings.style.display = 'none';
+            } else if (selectedProvider === 'vertex') {
+                geminiSettings.style.display = 'none';
+                vertexSettings.style.display = 'block';
+            }
+        });
+    }
+
+    // Save provider settings
+    const saveProviderSettingsButton = document.getElementById('saveProviderSettings');
+    if (saveProviderSettingsButton) {
+        saveProviderSettingsButton.addEventListener('click', function () {
+            const providerSelect = document.getElementById('aiProviderSelect');
+            const selectedProvider = providerSelect.value;
+            
+            let selectedModel;
+            if (selectedProvider === 'gemini') {
+                const modelSelect = document.getElementById('geminiModelSelect');
+                selectedModel = modelSelect.value;
+            } else if (selectedProvider === 'vertex') {
+                const modelSelect = document.getElementById('vertexModelSelect');
+                selectedModel = modelSelect.value;
+            }
+
+            window.aiAnalyzer.setProvider(selectedProvider, selectedModel).then(result => {
+                if (result.success) {
+                    showNotification(`Switched to ${selectedProvider} with model ${selectedModel}`, 'success');
+                } else {
+                    showNotification('Failed to save provider settings: ' + result.error, 'error');
+                }
+            });
         });
     }
 
@@ -2318,12 +2388,70 @@ async function initializeAIFeatures() {
     initializeAIAnalysis();
 
     // Load API key from storage
-    chrome.storage.local.get(['geminiApiKey'], function (result) {
+    chrome.storage.local.get([
+        'geminiApiKey', 
+        'vertexProjectId', 
+        'vertexLocation', 
+        'vertexServiceAccount',
+        'aiProvider',
+        'aiModel'
+    ], function (result) {
+        // Load Gemini settings
         if (result.geminiApiKey) {
             const apiKeyInput = document.getElementById('geminiApiKey');
-
             if (apiKeyInput) {
                 apiKeyInput.value = result.geminiApiKey;
+            }
+        }
+
+        // Load Vertex AI settings  
+        if (result.vertexProjectId) {
+            const projectIdInput = document.getElementById('vertexProjectId');
+            if (projectIdInput) {
+                projectIdInput.value = result.vertexProjectId;
+            }
+        }
+        
+        if (result.vertexLocation) {
+            const locationInput = document.getElementById('vertexLocation');
+            if (locationInput) {
+                locationInput.value = result.vertexLocation;
+            }
+        }
+        
+        if (result.vertexServiceAccount) {
+            const vertexApiKeyInput = document.getElementById('vertexApiKey');
+            if (vertexApiKeyInput) {
+                vertexApiKeyInput.value = result.vertexServiceAccount;
+            }
+        }
+
+        // Load provider selection
+        if (result.aiProvider) {
+            const providerSelect = document.getElementById('aiProviderSelect');
+            if (providerSelect) {
+                providerSelect.value = result.aiProvider;
+                
+                // Update UI visibility
+                const geminiSettings = document.getElementById('geminiSettings');
+                const vertexSettings = document.getElementById('vertexSettings');
+                
+                if (result.aiProvider === 'gemini') {
+                    geminiSettings.style.display = 'block';
+                    vertexSettings.style.display = 'none';
+                } else if (result.aiProvider === 'vertex') {
+                    geminiSettings.style.display = 'none';
+                    vertexSettings.style.display = 'block';
+                }
+            }
+        }
+
+        // Load model selection
+        if (result.aiModel) {
+            const provider = result.aiProvider || 'gemini';
+            const modelSelect = document.getElementById(`${provider}ModelSelect`);
+            if (modelSelect) {
+                modelSelect.value = result.aiModel;
             }
         }
     });

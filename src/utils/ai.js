@@ -14,7 +14,22 @@
     // Define the AIAnalyzer class
     class AIAnalyzer {
         constructor() {
-            this.apiKey = null;
+            this.providers = {
+                gemini: {
+                    name: 'Google Gemini',
+                    apiKey: null,
+                    models: ['gemini-2.5-flash', 'gemini-2.5-pro']
+                },
+                vertex: {
+                    name: 'Google Vertex AI',
+                    projectId: null,
+                    location: 'us-central1',
+                    apiKey: null, // Service account key JSON
+                    models: ['gemini-2.5-pro', 'gemini-2.5-flash']
+                }
+            };``
+            this.currentProvider = 'gemini';
+            this.currentModel = 'gemini-2.5-flash';
             this.rules = [];
             this.currentRule = null;
             this.isAnalyzing = false;
@@ -25,7 +40,6 @@
          */
         async init() {
             console.log('AI Analyzer initialized');
-            // Load API key and rules from storage
             await this.loadSettings();
         }
 
@@ -34,10 +48,34 @@
          */
         async loadSettings() {
             try {
-                const storage = await chrome.storage.local.get(['geminiApiKey', 'accessibilityRules']);
+                const storage = await chrome.storage.local.get([
+                    'geminiApiKey', 
+                    'vertexProjectId',
+                    'vertexLocation', 
+                    'vertexServiceAccount',
+                    'aiProvider',
+                    'aiModel',
+                    'accessibilityRules'
+                ]);
+                
+                // Load provider-specific settings
                 if (storage.geminiApiKey) {
-                    this.apiKey = storage.geminiApiKey;
+                    this.providers.gemini.apiKey = storage.geminiApiKey;
                 }
+                if (storage.vertexProjectId) {
+                    this.providers.vertex.projectId = storage.vertexProjectId;
+                }
+                if (storage.vertexLocation) {
+                    this.providers.vertex.location = storage.vertexLocation;
+                }
+                if (storage.vertexServiceAccount) {
+                    this.providers.vertex.apiKey = storage.vertexServiceAccount;
+                }
+                
+                // Load current provider and model
+                this.currentProvider = storage.aiProvider || 'gemini';
+                this.currentModel = storage.aiModel || this.providers[this.currentProvider].models[0];
+                
                 if (storage.accessibilityRules) {
                     this.rules = storage.accessibilityRules;
                 } else {
@@ -47,7 +85,9 @@
                 }
                 return {
                     success: true,
-                    rules: this.rules
+                    rules: this.rules,
+                    provider: this.currentProvider,
+                    model: this.currentModel
                 };
             } catch (error) {
                 console.error('Error loading AI analyzer settings:', error);
@@ -119,7 +159,7 @@
                 await chrome.storage.local.set({
                     geminiApiKey: apiKey
                 });
-                this.apiKey = apiKey;
+                this.providers.gemini.apiKey = apiKey;
                 return {
                     success: true
                 };
@@ -129,6 +169,90 @@
                     success: false,
                     error: error.message
                 };
+            }
+        }
+
+        /**
+         * Save Vertex AI settings to storage
+         */
+        async saveVertexSettings(projectId, location, serviceAccountKey) {
+            try {
+                await chrome.storage.local.set({
+                    vertexProjectId: projectId,
+                    vertexLocation: location || 'us-central1',
+                    vertexServiceAccount: serviceAccountKey
+                });
+                this.providers.vertex.projectId = projectId;
+                this.providers.vertex.location = location || 'us-central1';
+                this.providers.vertex.apiKey = serviceAccountKey;
+                return {
+                    success: true
+                };
+            } catch (error) {
+                console.error('Error saving Vertex AI settings:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+
+        /**
+         * Set current AI provider
+         */
+        async setProvider(provider, model = null) {
+            if (!this.providers[provider]) {
+                throw new Error(`Unknown provider: ${provider}`);
+            }
+            
+            this.currentProvider = provider;
+            this.currentModel = model || this.providers[provider].models[0];
+            
+            try {
+                await chrome.storage.local.set({
+                    aiProvider: this.currentProvider,
+                    aiModel: this.currentModel
+                });
+                return {
+                    success: true,
+                    provider: this.currentProvider,
+                    model: this.currentModel
+                };
+            } catch (error) {
+                console.error('Error saving provider settings:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+
+        /**
+         * Get available providers
+         */
+        getProviders() {
+            return Object.keys(this.providers).map(key => ({
+                id: key,
+                name: this.providers[key].name,
+                models: this.providers[key].models,
+                configured: this.isProviderConfigured(key)
+            }));
+        }
+
+        /**
+         * Check if a provider is properly configured
+         */
+        isProviderConfigured(provider) {
+            const prov = this.providers[provider];
+            if (!prov) return false;
+            
+            switch (provider) {
+                case 'gemini':
+                    return !!prov.apiKey;
+                case 'vertex':
+                    return !!(prov.projectId && prov.apiKey);
+                default:
+                    return false;
             }
         }
 
@@ -318,10 +442,10 @@
          * Analyze element against selected accessibility rule
          */
         async analyzeElement(elementData) {
-            if (!this.apiKey) {
+            if (!this.isProviderConfigured(this.currentProvider)) {
                 return {
                     success: false,
-                    error: 'API key not set. Please set your Gemini API key in settings.'
+                    error: `${this.providers[this.currentProvider].name} is not properly configured. Please set up your API credentials in settings.`
                 };
             }
 
@@ -335,14 +459,25 @@
             try {
                 this.isAnalyzing = true;
                 const prompt = this.generatePrompt(elementData, this.currentRule);
-                console.log('Calling Gemini API...');
+                console.log(`Calling ${this.providers[this.currentProvider].name} API...`);
+                
+                let apiResponse;
+                if (this.currentProvider === 'gemini') {
+                    apiResponse = await this.callGeminiAPI(prompt);
+                } else if (this.currentProvider === 'vertex') {
+                    apiResponse = await this.callVertexAPI(prompt);
+                } else {
+                    throw new Error(`Unsupported provider: ${this.currentProvider}`);
+                }
+                
                 const {
                     rawResponse,
                     responseTime,
                     tokenCount
-                } = await this.callGeminiAPI(prompt);
+                } = apiResponse;
+                
                 this.isAnalyzing = false;
-                console.log('Gemini API response received');
+                console.log(`${this.providers[this.currentProvider].name} API response received`);
                 // console.log('Gemini raw response:', rawResponse);
                 let result;
                 const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
@@ -393,6 +528,8 @@
 
                 return {
                     success: true,
+                    provider: this.currentProvider,
+                    model: this.currentModel,
                     ruleName: this.currentRule.name,
                     ruleId: this.currentRule.id,
                     result: result
@@ -413,7 +550,7 @@
         async callGeminiAPI(prompt) {
             try {
                 const startTime = performance.now();
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.currentModel}:generateContent`;
 
                 const requestBody = {
                     contents: [{
@@ -433,7 +570,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-goog-api-key': this.apiKey
+                        'X-goog-api-key': this.providers.gemini.apiKey
                     },
                     body: JSON.stringify(requestBody)
                 });
@@ -465,6 +602,63 @@
             } catch (error) {
                 console.error('Gemini API call failed:', error);
                 throw new Error(`Gemini API call failed: ${error.message}`);
+            }
+        }
+
+        /**
+         * Call Vertex AI API
+         */
+        async callVertexAPI(prompt) {
+            try {
+                const startTime = performance.now();
+                const apiUrl = `https://${this.providers.vertex.location}-aiplatform.googleapis.com/v1/projects/${this.providers.vertex.projectId}/locations/${this.providers.vertex.location}/publishers/google/models/${this.currentModel}:generateContent`;
+                const requestBody = {
+                    contents: [{
+                        parts: [{
+                            text: prompt
+                        }]
+                    }],
+                    generationConfig: {
+                        temperature: 0.2,
+                        maxOutputTokens: 2048,
+                        topP: 0.8,
+                        topK: 40
+                    }
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-goog-api-key': this.providers.vertex.apiKey
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const endTime = performance.now();
+                const responseTime = (endTime - startTime).toFixed(2);
+
+                if (!response.ok) {
+                    throw new Error(`Vertex API request failed with status ${response.status}: ${await response.text()}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.candidates || !data.candidates[0] || !data.candidates[0].content || !data.candidates[0].content.parts || !data.candidates[0].content.parts[0] || !data.candidates[0].content.parts[0].text) {
+                    throw new Error('Unexpected Vertex API response format: missing candidate text.');
+                }
+                const tokenCount = {
+                    input: data.usageMetadata?.promptTokenCount || 0,
+                    output: data.usageMetadata?.candidatesTokenCount || 0,
+                };
+                return {
+                    rawResponse: data.candidates[0].content.parts[0].text,
+                    responseTime: responseTime,
+                    tokenCount: tokenCount
+                };
+            } catch (error) {
+                console.error('Vertex AI API call failed:', error);
+                throw new Error(`Vertex AI API call failed: ${error.message}`);
             }
         }
     }

@@ -2274,6 +2274,24 @@ input:checked+.slider:before {
     margin-bottom: 8px;
 }
 
+.provider-select, .model-select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    font-family: var(--font-family);
+    background-color: white;
+    margin-bottom: 8px;
+}
+
+.setting-description {
+    font-size: 12px;
+    color: #5f6368;
+    margin-top: 4px;
+    margin-bottom: 0;
+    line-height: 1.4;
+}
+
 .settings-actions {
     display: flex;
     justify-content: flex-end;
@@ -2475,6 +2493,17 @@ input:checked+.slider:before {
     background-color: #202124;
     border-color: #3c4043;
     color: #e8eaed;
+}
+
+[data-theme="dark"] .provider-select,
+[data-theme="dark"] .model-select {
+    background-color: #202124;
+    border-color: #3c4043;
+    color: #e8eaed;
+}
+
+[data-theme="dark"] .setting-description {
+    color: #9aa0a6;
 }
 
 [data-theme="dark"] .rule-item {
