@@ -1,3 +1,6 @@
+## [1.2.9] - 2026-03-23
+- prompt changes
+
 ## [1.2.8] - 2026-03-23
 - Merge branch master of https://github.com/SumanReddy568/nodeValidator
 
