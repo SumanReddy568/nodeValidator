@@ -112,6 +112,7 @@ for required_file in \
     "src/content/content.js" \
     "src/utils/csvUtils.js" \
     "src/utils/ai.js" \
+    "src/utils/prompts/*.js" \
     "src/utils/aiUIHandler.js" \
     "src/devtools/devtools.js" \
     "public/devtools.html" \
