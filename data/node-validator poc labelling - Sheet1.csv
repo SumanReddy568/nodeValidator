@@ -1,0 +1,55 @@
+Issue type,url,targetNode,Needs review,Violation/Need Review,QA Status,QA Comment,Dev Buckets,comment
+accessible-name,https://college.mayo.edu/,#course-search-form__submit,FALSE,Violation,FP,Element is non-interactable,Non percivible click,no click
+accessible-name,https://www.barclays.co.uk/branch-finder/,.gm-style > div:nth-child(1),FALSE,Violation,FP,Map is getting selected as whole where sibling is marked correctly as aria label as map,,
+accessible-name,https://usercentrics.com/,#uc_us_redirect_modal > .uc-modal-veil.uc-ctx--dark,FALSE,Violation,FP,hidden element,Improper dimensions,"popupoverlay, full width, display none"
+accessible-name,https://www.gracobaby.com/,.header-row-brands.light-theme,FALSE,Violation,FP,Empty hidden non-interactive element,Improper dimensions,height is 1px
+accessible-name,https://sso.geoforce.com/oauth2/aus2m0i6crB8gPrmz5d7/v1/authorize,#login-page-header,FALSE,Violation,FP,Empty Non interactive element,Non percivible click,non interactable empty container
+accessible-name,https://sso.geoforce.com/oauth2/aus2m0i6crB8gPrmz5d7/v1/authorize,.login-bg-image,FALSE,Violation,FP,"Empty Non interactive element, bg image is getting captured",Improper dimensions,background image full width
+accessible-name,https://www.mayoclinic.org/,"mc-search[uuid=""globalsearch-c538ac7522""] > .search-container.full-width.sc-mc-search > .search-icon-magnifier.search-icon.sc-mc-search",FALSE,Violation,FP,"Child element(svg) is aria-hidden=true, should not be considered",getting script error / non interactable,
+accessible-name,https://www.overstock.com/,#feed > div:nth-child(1),FALSE,Violation,FP,"Parent has title ""Notfications"" which is correct",parent / child / sibling check,details is present in either parent child or sibling
+accessible-name,https://hringdu.is/heimanet,.info-container > .info-icon,FALSE,Violation,FP,Non interactive element,Non percivible click,svg / icon / image
+accessible-name,https://focusonforce.com/,".course_columns.thrv-columns[data-css=""tve-u-17bd8f34fb4""]:nth-child(22) > .tcb--cols--3.v-2[data-css=""tve-u-17bd8f34fb5""] > .tcb-flex-col[data-css=""tve-u-17bd8f34fe2""] > div[data-css=""tve-u-186687edb01""][data-hash=""#integration_architect""][data-target=""_blank""]",FALSE,Violation,FP,Empty Non interactable element,Non percivible click,disaply none
+accessible-name,https://focusonforce.com/,"div[data-css=""tve-u-18c67215f12""]",FALSE,Violation,FP,Empty Non interactable element,Non percivible click,disaply none
+accessible-name,https://focusonforce.com/,".course_columns.thrv-columns[data-css=""tve-u-17bd8f34fb4""]:nth-child(20) > .tcb--cols--3.v-2[data-css=""tve-u-17bd8f34fb5""] > .tcb-flex-col[data-css=""tve-u-17bd8f34fe2""] > div[data-css=""tve-u-186687edb01""][data-hash=""#integration_architect""][data-target=""_blank""]",FALSE,Violation,FP,Empty Non interactable element,Non percivible click,disaply none
+accessible-name,https://focusonforce.com/,"div[data-css=""tve-u-1980d4e8f9c""]",FALSE,Violation,FP,Empty Non interactable element,Non percivible click,disaply none
+accessible-name,https://www.gismeteo.ru/,.header-logo,FALSE,Violation,FP,Non interactive element,Non percivible click,svg / icon / image
+accessible-name,https://www.gismeteo.ru/,#adfox_300x100,FALSE,Violation,FP,Non interactive element,Non percivible click,no click
+accessible-name,https://www.gismeteo.ru/,#adfox_300x600,FALSE,Violation,FP,Non interactive element,Non percivible click,no click
+accessible-name,https://www.gismeteo.ru/,#adfox_640x250,FALSE,Violation,FP,Non interactive element,Non percivible click,no click
+accessible-name,https://www.saab.com/,.hero-top > .dark-layer,FALSE,Violation,FP,Non interactive element,Improper dimensions,full width / height
+accessible-name,https://login.bgsu.edu/,.login-bg-image,FALSE,Violation,FP,Non interactive element,Improper dimensions,full width / height
+accessible-name,https://www.infosys.com/iki/about.html,"#idIframe, .input-group-addon",FALSE,Violation,FP,"child has aria-hidden=""true""",iframe,getting script error
+accessible-name,https://school.teachingbooks.net/Literary_Calendar.cgi,.lit_calendar_week:nth-child(6) > .lit_calendar_day:nth-child(7) > .day_number,FALSE,Violation,FP,Empty Non interactable element,Non percivible click,empty div
+accessible-name,https://school.teachingbooks.net/Literary_Calendar.cgi,.lit_calendar_week:nth-child(2) > .lit_calendar_day:nth-child(3) > .day_number,FALSE,Violation,FP,Empty Non interactable element,Non percivible click,empty div
+accessible-name,https://school.teachingbooks.net/Literary_Calendar.cgi,.lit_calendar_week:nth-child(2) > .lit_calendar_day:nth-child(2) > .day_number,FALSE,Violation,FP,Empty Non interactable element,Non percivible click,empty div
+accessible-name,https://school.teachingbooks.net/Literary_Calendar.cgi,.lit_calendar_week:nth-child(2) > .lit_calendar_day:nth-child(1) > .day_number,FALSE,Violation,FP,Empty Non interactable element,Non percivible click,empty div
+accessible-name,https://testrigor.com/,#b-4 > .trdc-icon-box.tR-dark-card,FALSE,Violation,FP,Non interactive element,Non percivible click,svg / icon / image
+accessible-name,https://www.kaercher.com/de/home-garden/hochdruckreiniger/k-7-premium-smart-control-flex-home-13173630.html,".col-md-7.col-xs-6 > .fc-close[data-kjs-click=""close""]",FALSE,Violation,TP,,,
+accessible-name,https://www.danone.com/,"#videoteaser-90fea48522 > .cmp-videoteaser__video > video[playsinline=""""]",FALSE,Violation,TP,,,
+accessible-name,https://www.danone.com/,"#videoteaser-be51fb35d7 > .cmp-videoteaser__video > video[autoplay=""true""][loop=""true""]",FALSE,Violation,TP,,,
+accessible-name,https://www.ubreakifix.com/locations/whitefishbay,.elements__YouTubeButton-sc-b59d98b8-3,FALSE,Violation,TP,,,
+accessible-name,https://www.ubreakifix.com/locations/whitefishbay,".krRJDR > .StoreImageGallery__StoreImageGalleryContainer-sc-107159aa-0.bSNnBD > .StoreImageGallery__StoreImageGalleryInner-sc-107159aa-1.kEQuoA > .Gallery__ThumbnailContainer-sc-6367d938-3.bKmEDH > .kcuLGH.ImageThumbnail__ImageThumbnailContainer-sc-c28090b8-1[data-testid=""thumbnail-4""]",FALSE,Violation,TP,,,
+accessible-name,https://www.ubreakifix.com/locations/whitefishbay,".krRJDR > .StoreImageGallery__StoreImageGalleryContainer-sc-107159aa-0.bSNnBD > .StoreImageGallery__StoreImageGalleryInner-sc-107159aa-1.kEQuoA > .Gallery__ThumbnailContainer-sc-6367d938-3.bKmEDH > .kcuLGH.ImageThumbnail__ImageThumbnailContainer-sc-c28090b8-1[data-testid=""thumbnail-3""]",FALSE,Violation,TP,,,
+accessible-name,https://www.ubreakifix.com/locations/whitefishbay,".krRJDR > .StoreImageGallery__StoreImageGalleryContainer-sc-107159aa-0.bSNnBD > .StoreImageGallery__StoreImageGalleryInner-sc-107159aa-1.kEQuoA > .Gallery__ThumbnailContainer-sc-6367d938-3.bKmEDH > .kcuLGH.ImageThumbnail__ImageThumbnailContainer-sc-c28090b8-1[data-testid=""thumbnail-1""]",FALSE,Violation,TP,,,
+accessible-name,https://www.ubreakifix.com/locations/whitefishbay,".krRJDR > .StoreImageGallery__StoreImageGalleryContainer-sc-107159aa-0.bSNnBD > .StoreImageGallery__StoreImageGalleryInner-sc-107159aa-1.kEQuoA > .Gallery__ThumbnailContainer-sc-6367d938-3.bKmEDH > .ecVFVf.ImageThumbnail__ImageThumbnailContainer-sc-c28090b8-1[data-testid=""thumbnail-0""]",FALSE,Violation,TP,,,
+accessible-name,https://careers.asurion.com/us/en,#skipToMainContent,FALSE,Violation,TP,,,
+accessible-name,https://onlineshop.haribo.com/,.notification-bar-collapse--header,FALSE,Violation,TP,,,
+accessible-name,https://onlineshop.haribo.com/,.container--ajax-cart,FALSE,Violation,TP,,,
+accessible-name,https://ba.gorenje.com/podrska,.support__pin-icon,FALSE,Violation,TP,,,
+accessible-name,https://www.pacificlife.com/home/individuals/employee-benefits.html,.default,FALSE,Violation,TP,,,
+accessible-name,https://www.avironactive.com/shop-a/,.DesktopHeader_button-login__GuXtq,FALSE,Violation,TP,,,
+accessible-name,https://www.walgreens.com/offers/offers.jsp,#store-selector-trigger-desktop > .header-store.overflowInitial.truncate > div:nth-child(1) > span,FALSE,Violation,TP,,,
+accessible-name,"https://karriere.drk-kliniken-berlin.de/,",.PageFooter__QuickApplicationLink-sc-56hj8z-5,FALSE,Violation,TP,,,
+accessible-name,https://www.floralux.be/nl/,"flx-cf-add-to-wishlist-icon[itemid=""20250910_1""] > .m-card__favourite",FALSE,Violation,TP,,,
+accessible-name,https://www.floralux.be/nl/,"flx-cf-add-to-wishlist-icon[itemid=""200174831""] > .m-card__favourite",FALSE,Violation,TP,,,
+accessible-name,https://www.floralux.be/nl/,"flx-cf-add-to-wishlist-icon[itemid=""2025103""] > .m-card__favourite",FALSE,Violation,TP,,,
+accessible-name,https://testapp.socialfries.io/login,i,FALSE,Violation,TP,,,
+accessible-name,https://www.bbrown.com/us/,#menu-item-275 > .ubermenu-target-with-icon.ubermenu-item-layout-icon_left.ubermenu-item-notext,FALSE,Violation,TP,,,
+accessible-name,https://counseling.ufl.edu/resources/,.esg-sortbutton-order,FALSE,Violation,TP,,,
+accessible-name,https://counseling.ufl.edu/resources/,.eg-search-clean,FALSE,Violation,TP,,,
+accessible-name,https://counseling.ufl.edu/resources/,.eg-search-submit,FALSE,Violation,TP,,,
+accessible-name,https://usercentrics.com/,".uc-notification__close > svg[viewBox=""0 0 24 24""][width=""24""][height=""24""]",FALSE,Violation,TP,,,
+accessible-name,https://aicandy.vn/ve-do-thi-ham-so/,"a[data-title=""Reset axes""]",FALSE,Violation,TP,,,
+,,,,,,,,
+,,,,,,,,
+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,,,,,,,,
