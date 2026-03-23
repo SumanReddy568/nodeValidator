@@ -1,3 +1,6 @@
+## [1.2.5] - 2026-03-23
+- working v1 changes
+
 ## [1.2.2] - 2025-08-26
 - adding rember check
 
