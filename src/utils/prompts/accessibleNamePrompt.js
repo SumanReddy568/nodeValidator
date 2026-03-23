@@ -31,11 +31,20 @@ Your analysis must be methodical and precise.
 strict_rule: Do not consider element highlighted border for evaluation, it is just for representation of the base element
 
 1. **Determine Necessity:** Identify if the Target HTML Element requires an accessible name:
+   - PRECEDENCE RULE: If the target is non-interactive, mark PASS immediately for this rule unless it is clearly a meaningful standalone graphic exposed semantically to assistive tech.
    - Interactive elements (buttons, links, inputs, form controls) REQUIRE an accessible name
    - Images and graphics REQUIRE an accessible name (via alt text or aria-label)
    - Form inputs REQUIRE associated labels or aria-label
    - Landmark regions MAY need accessible names
    - Decorative elements do NOT require accessible names
+   - Non-interactive SVG/icon elements inside non-interactive containers should be treated as decorative by default and PASS.
+   - Only require an SVG accessible name when there is explicit semantic/meaningful intent (for example: role="img", aria-* labeling intent, or clear standalone informative graphic purpose).
+   - Hidden elements should be treated as NON-interactive for this rule unless there is strong evidence they are intentionally exposed to assistive tech
+   - For custom elements, require an accessible name ONLY when there is strong interactivity evidence such as:
+     native activation behavior, interactive ARIA role, keyboard focusability with intended interaction, or explicit click/keyboard event handling
+    - A single onclick handler alone is NOT sufficient to classify an element as interactive for this rule.
+    - If onclick is present, confirm interactivity using screenshots plus at least one additional strong signal (for example: interactive role, keyboard support, focusability in context, or visible control-like UI intent).
+   - Do NOT treat visual styling or metadata alone as interactivity evidence (for example: cursor: pointer, CSS classes, data-* attributes such as data-href)
 
 2. **Check Accessible Name Sources (in order of precedence):**
    - aria-label or aria-labelledby attributes
@@ -51,12 +60,20 @@ strict_rule: Do not consider element highlighted border for evaluation, it is ju
    - Name should not be redundant with surrounding context
 
 4. **Check Hidden/Invisible Elements:**
-   - Ensure name is not hidden or irrelevant
-   - Visually hidden but screen-reader accessible names are acceptable
+   - Use visual evidence from screenshots as the PRIMARY signal for visibility and interactivity in this rule.
+   - When onclick exists but the screenshot shows plain/non-control presentation, no visible affordance, or hidden/occluded state, treat as non-interactive unless stronger semantic evidence overrides.
+   - If the element appears hidden/off-canvas/fully occluded/not rendered in screenshots, treat it as non-interactive for accessible-name necessity, even when CSS shows visibility: visible.
+   - Use computed CSS visibility data as supporting/fallback evidence only when screenshots are missing or ambiguous.
+   - If computed styles indicate hidden state (for example: display: none, visibility: hidden, opacity: 0), treat the element as non-interactive for accessible-name necessity
+   - Visually hidden but intentionally screen-reader-accessible content is acceptable when semantic intent is clear
 
 5. **Pass/Fail:** Assign a final status of "PASS" or "FAIL".
    - **PASS:** The element has a proper, descriptive accessible name when required.
    - **FAIL:** The element is missing an accessible name, the name is empty/meaningless, or it's inaccurate.
+   - If the target is non-interactive, default to PASS and explain why accessible-name is not required for this element context.
+   - Do NOT fail based on onclick alone.
+   - Do NOT fail solely because an element looks clickable if hidden-state evidence indicates it is not currently interactive.
+   - If interactivity is uncertain or based only on weak signals, prefer PASS with explanation rather than a false-positive FAIL.
 
 6. **Summary & Details:** Provide a concise summary and a detailed technical explanation referencing the code.
 7. **Suggestions:** Provide an actionable code snippet to fix any issues.
