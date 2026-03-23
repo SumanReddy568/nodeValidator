@@ -546,53 +546,57 @@ function processAutomatedResult(response, index) {
 
       console.log(`Auto-marking item ${index} as ${status}`);
 
-      // Update the data
-      if (storedValidationData[index]) {
-        storedValidationData[index].status = status;
-        storedValidationData[index].comments = comments;
-      }
+          // IF AI is enabled, we let the panel drive the marking and navigation
+          chrome.storage.local.get(["evaluateUsingAi"], function(settings) {
+            const aiEnabled = settings.evaluateUsingAi === true || settings.evaluateUsingAi === "true";
+            
+            if (aiEnabled) {
+              console.log("AI is enabled, skipping background auto-marking for item", index);
+              return;
+            }
 
-      // Update local variable to stay in sync with storage
-      validationData = storedValidationData;
+            // Otherwise, proceed with background auto-marking
+            // Update the data
+            if (storedValidationData[index]) {
+              storedValidationData[index].status = status;
+              storedValidationData[index].comments = comments;
+            }
 
-      // Get the filter start index to ensure proper progress tracking
-      const filterStartIndex =
-        typeof data.filterStartIndex === "number" ? data.filterStartIndex : 0;
+            // Save the current state
+            chrome.storage.local.set(
+              {
+                validationData: storedValidationData,
+                currentIndex: index,
+                validationActive: true,
+              },
+              function () {
+                // Notify the panel of the update
+                chrome.runtime.sendMessage({
+                  action: "UPDATE_STATUS_RESULT",
+                  success: true,
+                  automated: true,
+                  index: index,
+                  status: status,
+                  comments: comments,
+                  isLast: index === storedValidationData.length - 1,
+                  filterStartIndex: filterStartIndex,
+                });
 
-      // Save the current state
-      chrome.storage.local.set(
-        {
-          validationData: storedValidationData,
-          currentIndex: index, // Ensure we maintain the correct current index for export functionality
-          validationActive: true,
-        },
-        function () {
-          // Notify the panel of the update
-          chrome.runtime.sendMessage({
-            action: "UPDATE_STATUS_RESULT",
-            success: true,
-            automated: true,
-            index: index,
-            status: status,
-            comments: comments,
-            isLast: index === storedValidationData.length - 1,
-            filterStartIndex: filterStartIndex,
+                // Check if this is the last item
+                if (index === storedValidationData.length - 1) {
+                  console.log("Processed last item, will finish validation soon");
+                  setTimeout(() => {
+                    finishValidation();
+                  }, 1000);
+                } else if (automatedMode && data.validationActive) {
+                  // Continue to next URL after a delay, maintaining the current index
+                  setTimeout(() => {
+                    moveToNextUrl();
+                  }, 2000);
+                }
+              },
+            );
           });
-
-          // Check if this is the last item
-          if (index === storedValidationData.length - 1) {
-            console.log("Processed last item, will finish validation soon");
-            setTimeout(() => {
-              finishValidation();
-            }, 1000);
-          } else if (automatedMode && data.validationActive) {
-            // Continue to next URL after a delay, maintaining the current index
-            setTimeout(() => {
-              moveToNextUrl();
-            }, 2000);
-          }
-        },
-      );
     },
   );
 }
@@ -708,40 +712,49 @@ function openAndHighlight(index, tabId) {
 
         function processResponse(response) {
           if (automatedMode) {
-            if (response && response.found) {
-              console.log("Element found, auto-marking as True Positive");
-              validationData[index].status = "True Positive";
-              validationData[index].comments =
-                "Automatically marked as True Positive";
-            } else {
-              console.log("Element not found, auto-marking as Not Valid");
-              validationData[index].status = "Not Valid";
-              validationData[index].comments =
-                "Automatically marked as Not Valid - element not found";
-            }
-
-            chrome.storage.local.set({ validationData }, function () {
-              chrome.runtime.sendMessage({
-                action: "UPDATE_STATUS_RESULT",
-                success: true,
-                automated: true,
-                index: index,
-                status: validationData[index].status,
-                comments: validationData[index].comments,
-              });
-
-              if (automatedMode && validationActive) {
-                setTimeout(function () {
-                  currentIndex++;
-                  chrome.storage.local.set({ currentIndex }, function () {
-                    if (currentIndex < validationData.length) {
-                      openAndHighlight(currentIndex, tabId);
-                    } else {
-                      finishValidation();
-                    }
-                  });
-                }, 2000);
+            chrome.storage.local.get(["evaluateUsingAi"], function(settings) {
+              const aiEnabled = settings.evaluateUsingAi === true || settings.evaluateUsingAi === "true";
+              
+              if (aiEnabled) {
+                console.log("AI is enabled, skipping background auto-marking for item", index);
+                return;
               }
+
+              if (response && response.found) {
+                console.log("Element found, auto-marking as True Positive");
+                validationData[index].status = "True Positive";
+                validationData[index].comments =
+                  "Automatically marked as True Positive";
+              } else {
+                console.log("Element not found, auto-marking as Not Valid");
+                validationData[index].status = "Not Valid";
+                validationData[index].comments =
+                  "Automatically marked as Not Valid - element not found";
+              }
+
+              chrome.storage.local.set({ validationData }, function () {
+                chrome.runtime.sendMessage({
+                  action: "UPDATE_STATUS_RESULT",
+                  success: true,
+                  automated: true,
+                  index: index,
+                  status: validationData[index].status,
+                  comments: validationData[index].comments,
+                });
+
+                if (automatedMode && validationActive) {
+                  setTimeout(function () {
+                    currentIndex++;
+                    chrome.storage.local.set({ currentIndex }, function () {
+                      if (currentIndex < validationData.length) {
+                        openAndHighlight(currentIndex, tabId);
+                      } else {
+                        finishValidation();
+                      }
+                    });
+                  }, 2000);
+                }
+              });
             });
           }
         }
