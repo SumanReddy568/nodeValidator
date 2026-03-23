@@ -357,6 +357,7 @@
                 </div>
                 <button id="runInteractiveCheck" class="action-button secondary" style="margin-left:auto;">RUN
                     Interactive Check</button>
+                <button id="nextUrlFromStats" class="action-button secondary">Next URL</button>
             </div>
 
             <!-- Start From Index Control (New) -->
@@ -598,6 +599,10 @@
                                                 style="padding: 4px; border-radius: 4px; border: 1px solid var(--border-color);">
                                                 <option value="role-required">Role Required</option>
                                             </select>
+                                            <button id="editPromptBtn" class="edit-prompt-btn"
+                                                title="Edit Prompt">✏️</button>
+                                            <button id="resetPromptBtn" class="reset-prompt-btn"
+                                                title="Reset Prompt">⟲</button>
                                             <button id="analyzeWithAI" style="display:none;"></button>
                                         </div>
                                     </div>
@@ -628,6 +633,30 @@
             </div>
         </div>
     </div>
+
+    <!-- Prompt Edit Modal -->
+    <div id="promptEditModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit AI Prompt</h3>
+                <button class="modal-close" id="closePromptModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="promptTextarea">Prompt:</label>
+                <textarea id="promptTextarea" placeholder="Enter your custom prompt..."></textarea>
+                <small style="color: var(--gray-600); margin-top: 8px; display: block;">
+                    Use {element} placeholder for the current element and {rule} for the selected rule.
+                </small>
+            </div>
+            <div class="modal-footer">
+                <button id="resetPromptModalBtn" class="action-button secondary">Reset to Default</button>
+                <div style="flex: 1;"></div>
+                <button id="cancelPromptModal" class="action-button secondary">Cancel</button>
+                <button id="savePromptModal" class="action-button primary">Save</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Global error handler that doesn't use inline handlers
         window.addEventListener('error', function (event) {
@@ -694,6 +723,8 @@
     </script>
     <script src="../src/utils/csvUtils.js"></script>
     <script src="../src/utils/prompts/roleRequiredPrompt.js"></script>
+    <script src="../src/utils/prompts/keyboardInteractivePrompt.js"></script>
+    <script src="../src/utils/prompts/accessibleNamePrompt.js"></script>
     <script src="../src/utils/ai.js"></script>
     <script src="../src/utils/aiUIHandler.js"></script>
     <script src="../src/panel/panel.js"></script>

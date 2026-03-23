@@ -178,6 +178,34 @@
         description: 'Interactive carousels must have the appropriate ARIA roles and attributes to be accessible.',
         details: 'Elements within a carousel should have roles like `region`, `tablist`, `tab`, and `tabpanel` to be correctly interpreted by assistive technologies.',
         criteria: ['Carousel elements have correct ARIA roles']
+    }, {
+        id: 'role-required',
+        name: 'Role Required',
+        description: 'Interactive elements have the appropriate ARIA role based on their form and function.',
+        details: 'Elements like buttons, links, and custom controls must have the correct ARIA role or native HTML equivalent.',
+        criteria: ['Interactive elements have appropriate roles', 'Roles match the element\'s form and function']
+    }, {
+        id: 'keyboard-interactive',
+        name: 'Keyboard Interactive',
+        description: 'All interactive elements are accessible via keyboard and have proper keyboard event handlers.',
+        details: 'Interactive elements must be focusable (via Tab key), have visible focus indicators, and respond to keyboard input (Enter, Space, Arrow keys).',
+        criteria: [
+            'Interactive elements are keyboard focusable',
+            'Keyboard event handlers are properly implemented',
+            'Focus indicators are visible and meet contrast requirements',
+            'No keyboard traps prevent user escape'
+        ]
+    }, {
+        id: 'accessible-name',
+        name: 'Accessible Name',
+        description: 'Elements that require a name have a descriptive, programmatically accessible name.',
+        details: 'Interactive elements must have accessible names via text content, aria-label, aria-labelledby, alt text, or associated labels.',
+        criteria: [
+            'All interactive elements have accessible names',
+            'Names are descriptive and meaningful',
+            'Names are programmatically associated with elements',
+            'Hidden elements have appropriate accessible names'
+        ]
     }];
     window.accessibilityDefaultRules = {
         getDefaultRules: function () {

@@ -191,6 +191,7 @@ function initializePanel() {
 
   if (runInteractiveCheckBtn) {
     runInteractiveCheckBtn.onclick = function () {
+      runInteractiveCheckBtn.classList.add("active");
       runInteractiveCheckBtn.disabled = true;
       runInteractiveCheckBtn.textContent = "Checking...";
 
@@ -214,12 +215,20 @@ function initializePanel() {
                   "error",
                 );
               }
+              // Remove active class after a short delay
+              setTimeout(() => {
+                runInteractiveCheckBtn.classList.remove("active");
+              }, 300);
             },
           );
         } else {
           runInteractiveCheckBtn.disabled = false;
           runInteractiveCheckBtn.textContent = "RUN Interactive Check";
           showNotification("No active tab found.", "error");
+          // Remove active class after a short delay
+          setTimeout(() => {
+            runInteractiveCheckBtn.classList.remove("active");
+          }, 300);
         }
       });
     };
@@ -629,6 +638,20 @@ function initializePanel() {
     const aiPanel = document.getElementById("aiAnalysisPanel");
     if (aiPanel) {
       aiPanel.classList.remove("collapsed");
+      // Ensure Mark Status section stays visible when expanding AI panel
+      setTimeout(() => {
+        const statusButtonsSection = document.getElementById(
+          "statusButtonsSection",
+        );
+        if (statusButtonsSection) {
+          const header = statusButtonsSection.querySelector(
+            ".collapsible-header",
+          );
+          if (header) {
+            header.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }
+      }, 50);
     }
   }
 
@@ -654,13 +677,13 @@ function initializePanel() {
     }
 
     isProcessingScreenshot = true;
-    
+
     while (screenshotQueue.length > 0) {
       const request = screenshotQueue.shift();
-      
+
       try {
         // Check cache first
-        const cacheKey = 'visible_tab_' + Date.now().toString().slice(0, -3); // Cache per second
+        const cacheKey = "visible_tab_" + Date.now().toString().slice(0, -3); // Cache per second
         if (screenshotCache.has(cacheKey)) {
           const cached = screenshotCache.get(cacheKey);
           if (Date.now() - cached.timestamp < SCREENSHOT_CACHE_TTL) {
@@ -672,20 +695,19 @@ function initializePanel() {
         }
 
         const dataUrl = await captureVisibleTabInternal();
-        
+
         // Cache the result
         screenshotCache.set(cacheKey, {
           dataUrl,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
-        
+
         request.resolve(dataUrl);
-        
+
         // Small delay between requests to avoid overwhelming the API
         if (screenshotQueue.length > 0) {
           await delay(SCREENSHOT_RETRY_DELAY);
         }
-        
       } catch (error) {
         if (request.retryCount < MAX_SCREENSHOT_RETRIES) {
           request.retryCount++;
@@ -693,16 +715,19 @@ function initializePanel() {
           await delay(SCREENSHOT_RETRY_DELAY * Math.pow(2, request.retryCount));
           screenshotQueue.unshift(request); // Add to front for immediate retry
         } else {
-          request.reject(new Error(`Screenshot failed after ${MAX_SCREENSHOT_RETRIES} retries: ${error.message}`));
+          request.reject(
+            new Error(
+              `Screenshot failed after ${MAX_SCREENSHOT_RETRIES} retries: ${error.message}`,
+            ),
+          );
         }
       }
     }
-    
+
     isProcessingScreenshot = false;
   }
 
   async function captureVisibleTabInternal() {
-
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
         { action: "CAPTURE_VISIBLE_TAB_SCREENSHOT" },
@@ -904,8 +929,10 @@ function initializePanel() {
       );
 
       // Check if we can use a single screenshot (small page)
-      if (metrics.fullHeight <= metrics.viewportHeight * 2 && 
-          metrics.fullWidth <= metrics.viewportWidth * 2) {
+      if (
+        metrics.fullHeight <= metrics.viewportHeight * 2 &&
+        metrics.fullWidth <= metrics.viewportWidth * 2
+      ) {
         // Small page - just take one expanded screenshot
         const dataUrl = await requestVisibleTabScreenshot();
         currentElementData.contextScreenshotDataUrl = dataUrl;
@@ -972,7 +999,10 @@ function initializePanel() {
       currentElementData.contextScreenshotDataUrl = contextScreenshot;
       return contextScreenshot;
     } catch (error) {
-      console.warn("Full page screenshot failed, using single screenshot:", error);
+      console.warn(
+        "Full page screenshot failed, using single screenshot:",
+        error,
+      );
       // Fallback to single screenshot
       try {
         const dataUrl = await requestVisibleTabScreenshot();
@@ -1108,6 +1138,21 @@ function initializePanel() {
 
         if (window.renderAIAnalysisResult && resultContainer) {
           window.renderAIAnalysisResult(result, resultContainer);
+
+          // Ensure Mark Status section header stays visible after AI results are rendered
+          setTimeout(() => {
+            const statusButtonsSection = document.getElementById(
+              "statusButtonsSection",
+            );
+            if (statusButtonsSection) {
+              const header = statusButtonsSection.querySelector(
+                ".collapsible-header",
+              );
+              if (header) {
+                header.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            }
+          }, 100);
         }
 
         if (result.success && result.result) {
@@ -1929,6 +1974,9 @@ function initializePanel() {
     nextUrlBtn.onclick = function () {
       console.log("Next URL button clicked, selected status:", selectedStatus);
 
+      // Add active class
+      nextUrlBtn.classList.add("active");
+
       // Prevent multiple clicks
       if (processingNextUrl) {
         console.log("Already processing next URL request, ignoring");
@@ -1937,6 +1985,10 @@ function initializePanel() {
 
       if (!selectedStatus) {
         showNotification("Please select a status for this node.", "error");
+        // Remove active class after a short delay
+        setTimeout(() => {
+          nextUrlBtn.classList.remove("active");
+        }, 300);
         return;
       }
 
@@ -1988,6 +2040,10 @@ function initializePanel() {
 
             // Move to next URL
             moveToNextUrl();
+            // Remove active class after a short delay
+            setTimeout(() => {
+              nextUrlBtn.classList.remove("active");
+            }, 300);
           } else {
             processingNextUrl = false;
             nextUrlBtn.disabled = false;
@@ -1996,9 +2052,28 @@ function initializePanel() {
               "Failed to update status. Please try again.",
               "error",
             );
+            // Remove active class after a short delay
+            setTimeout(() => {
+              nextUrlBtn.classList.remove("active");
+            }, 300);
           }
         },
       );
+    };
+  }
+
+  // Add listener for Next URL button in stats summary area
+  const nextUrlFromStatsBtn = document.getElementById("nextUrlFromStats");
+  if (nextUrlFromStatsBtn) {
+    nextUrlFromStatsBtn.onclick = function () {
+      nextUrlFromStatsBtn.classList.add("active");
+      if (nextUrlBtn) {
+        nextUrlBtn.click();
+      }
+      // Remove active class after a short delay
+      setTimeout(() => {
+        nextUrlFromStatsBtn.classList.remove("active");
+      }, 300);
     };
   }
 
@@ -3610,4 +3685,143 @@ async function initializeAIFeatures() {
 
   // Populate the UI with the loaded rules
   populateRuleDropdown();
+
+  // Prompt Edit Modal Functionality
+  const promptEditModal = document.getElementById("promptEditModal");
+  const editPromptBtn = document.getElementById("editPromptBtn");
+  const resetPromptBtn = document.getElementById("resetPromptBtn");
+  const closePromptModal = document.getElementById("closePromptModal");
+  const cancelPromptModal = document.getElementById("cancelPromptModal");
+  const savePromptModal = document.getElementById("savePromptModal");
+  const resetPromptModalBtn = document.getElementById("resetPromptModalBtn");
+  const promptTextarea = document.getElementById("promptTextarea");
+  const accessibilityRuleSelect = document.getElementById(
+    "accessibilityRuleSelect",
+  );
+
+  // Get default prompt for a rule using the generator functions or empty element data
+  const getDefaultPromptTemplate = (rule) => {
+    const emptyElementData = {
+      html: "<element>",
+      parentHtml: "<parent>",
+      childHtml: "",
+      accessibility: "Accessibility properties...",
+      cssProperties: "CSS properties...",
+      attributes: "Element attributes...",
+    };
+
+    if (rule === "role-required" && window.generateRoleRequiredPrompt) {
+      return window.generateRoleRequiredPrompt(emptyElementData);
+    } else if (
+      rule === "keyboard-interactive" &&
+      window.generateKeyboardInteractivePrompt
+    ) {
+      return window.generateKeyboardInteractivePrompt(emptyElementData);
+    } else if (
+      rule === "accessible-name" &&
+      window.generateAccessibleNamePrompt
+    ) {
+      return window.generateAccessibleNamePrompt(emptyElementData);
+    }
+    return "";
+  };
+
+  // Default prompts for each rule
+  const defaultPrompts = {
+    "role-required": getDefaultPromptTemplate("role-required"),
+    "keyboard-interactive": getDefaultPromptTemplate("keyboard-interactive"),
+    "accessible-name": getDefaultPromptTemplate("accessible-name"),
+  };
+
+  // Load custom prompt from localStorage
+  const loadCustomPrompt = (rule) => {
+    const key = `aiPrompt_${rule}`;
+    return (
+      localStorage.getItem(key) ||
+      defaultPrompts[rule] ||
+      getDefaultPromptTemplate(rule) ||
+      ""
+    );
+  };
+
+  // Save custom prompt to localStorage
+  const saveCustomPrompt = (rule, prompt) => {
+    const key = `aiPrompt_${rule}`;
+    localStorage.setItem(key, prompt);
+  };
+
+  // Reset prompt to default
+  const resetPromptToDefault = (rule) => {
+    const key = `aiPrompt_${rule}`;
+    localStorage.removeItem(key);
+  };
+
+  // Open edit modal
+  if (editPromptBtn) {
+    editPromptBtn.addEventListener("click", () => {
+      const currentRule = accessibilityRuleSelect.value;
+      const customPrompt = loadCustomPrompt(currentRule);
+      promptTextarea.value = customPrompt;
+      promptEditModal.style.display = "flex";
+    });
+  }
+
+  // Quick reset button
+  if (resetPromptBtn) {
+    resetPromptBtn.addEventListener("click", () => {
+      const currentRule = accessibilityRuleSelect.value;
+      resetPromptToDefault(currentRule);
+      alert(`Prompt reset to default for "${currentRule}"`);
+    });
+  }
+
+  // Close modal
+  if (closePromptModal) {
+    closePromptModal.addEventListener("click", () => {
+      promptEditModal.style.display = "none";
+    });
+  }
+
+  if (cancelPromptModal) {
+    cancelPromptModal.addEventListener("click", () => {
+      promptEditModal.style.display = "none";
+    });
+  }
+
+  // Close modal when clicking outside
+  if (promptEditModal) {
+    promptEditModal.addEventListener("click", (e) => {
+      if (e.target === promptEditModal) {
+        promptEditModal.style.display = "none";
+      }
+    });
+  }
+
+  // Reset in modal
+  if (resetPromptModalBtn) {
+    resetPromptModalBtn.addEventListener("click", () => {
+      const currentRule = accessibilityRuleSelect.value;
+      promptTextarea.value =
+        defaultPrompts[currentRule] ||
+        getDefaultPromptTemplate(currentRule) ||
+        "";
+    });
+  }
+
+  // Save custom prompt
+  if (savePromptModal) {
+    savePromptModal.addEventListener("click", () => {
+      const currentRule = accessibilityRuleSelect.value;
+      const customPrompt = promptTextarea.value.trim();
+
+      if (!customPrompt) {
+        alert("Prompt cannot be empty");
+        return;
+      }
+
+      saveCustomPrompt(currentRule, customPrompt);
+      alert("Prompt saved successfully!");
+      promptEditModal.style.display = "none";
+    });
+  }
 }

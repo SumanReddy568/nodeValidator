@@ -88,14 +88,11 @@
         this.currentModel =
           storage.aiModel || this.providers[this.currentProvider].models[0];
 
-        if (storage.accessibilityRules) {
-          this.rules = storage.accessibilityRules.filter(
-            (r) => r.id === "role-required",
-          );
-          if (this.rules.length === 0) {
-            this.rules = this.getDefaultRules();
-            await this.saveRules(this.rules);
-          }
+        if (
+          storage.accessibilityRules &&
+          storage.accessibilityRules.length > 0
+        ) {
+          this.rules = storage.accessibilityRules;
         } else {
           this.rules = this.getDefaultRules();
           await this.saveRules(this.rules);
@@ -128,6 +125,14 @@
         {
           id: "role-required",
           name: "Role Required",
+        },
+        {
+          id: "keyboard-interactive",
+          name: "Keyboard Interactivity",
+        },
+        {
+          id: "accessible-name",
+          name: "Accessible Name",
         },
       ];
     }
@@ -480,11 +485,31 @@
       try {
         this.isAnalyzing = true;
         let prompt;
-        if (
+
+        // Check for custom prompt in localStorage first
+        const customPromptKey = `aiPrompt_${this.currentRule.id}`;
+        const customPrompt = localStorage.getItem(customPromptKey);
+
+        if (customPrompt) {
+          // Use custom prompt with element data substitution
+          prompt = customPrompt
+            .replace(/\{element\}/g, JSON.stringify(elementData, null, 2))
+            .replace(/\{rule\}/g, this.currentRule.id);
+        } else if (
           this.currentRule.id === "role-required" &&
           window.generateRoleRequiredPrompt
         ) {
           prompt = window.generateRoleRequiredPrompt(elementData);
+        } else if (
+          this.currentRule.id === "keyboard-interactive" &&
+          window.generateKeyboardInteractivePrompt
+        ) {
+          prompt = window.generateKeyboardInteractivePrompt(elementData);
+        } else if (
+          this.currentRule.id === "accessible-name" &&
+          window.generateAccessibleNamePrompt
+        ) {
+          prompt = window.generateAccessibleNamePrompt(elementData);
         } else {
           prompt = this.generatePrompt(elementData, this.currentRule);
         }
