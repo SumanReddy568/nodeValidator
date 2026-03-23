@@ -1,0 +1,52 @@
+url,targetNode
+https://college.mayo.edu/,#course-search-form__submit
+https://www.barclays.co.uk/branch-finder/,.gm-style > div:nth-child(1)
+https://usercentrics.com/,#uc_us_redirect_modal > .uc-modal-veil.uc-ctx--dark
+https://www.gracobaby.com/,.header-row-brands.light-theme
+https://sso.geoforce.com/oauth2/aus2m0i6crB8gPrmz5d7/v1/authorize,#login-page-header
+https://sso.geoforce.com/oauth2/aus2m0i6crB8gPrmz5d7/v1/authorize,.login-bg-image
+https://www.mayoclinic.org/,"mc-search[uuid=""globalsearch-c538ac7522""] > .search-container.full-width.sc-mc-search > .search-icon-magnifier.search-icon.sc-mc-search"
+https://www.overstock.com/,#feed > div:nth-child(1)
+https://hringdu.is/heimanet,.info-container > .info-icon
+https://focusonforce.com/,".course_columns.thrv-columns[data-css=""tve-u-17bd8f34fb4""]:nth-child(22) > .tcb--cols--3.v-2[data-css=""tve-u-17bd8f34fb5""] > .tcb-flex-col[data-css=""tve-u-17bd8f34fe2""] > div[data-css=""tve-u-186687edb01""][data-hash=""#integration_architect""][data-target=""_blank""]"
+https://focusonforce.com/,"div[data-css=""tve-u-18c67215f12""]"
+https://focusonforce.com/,".course_columns.thrv-columns[data-css=""tve-u-17bd8f34fb4""]:nth-child(20) > .tcb--cols--3.v-2[data-css=""tve-u-17bd8f34fb5""] > .tcb-flex-col[data-css=""tve-u-17bd8f34fe2""] > div[data-css=""tve-u-186687edb01""][data-hash=""#integration_architect""][data-target=""_blank""]"
+https://focusonforce.com/,"div[data-css=""tve-u-1980d4e8f9c""]"
+https://www.gismeteo.ru/,.header-logo
+https://www.gismeteo.ru/,#adfox_300x100
+https://www.gismeteo.ru/,#adfox_300x600
+https://www.gismeteo.ru/,#adfox_640x250
+https://www.saab.com/,.hero-top > .dark-layer
+https://login.bgsu.edu/,.login-bg-image
+https://www.infosys.com/iki/about.html,"#idIframe, .input-group-addon"
+https://school.teachingbooks.net/Literary_Calendar.cgi,.lit_calendar_week:nth-child(6) > .lit_calendar_day:nth-child(7) > .day_number
+https://school.teachingbooks.net/Literary_Calendar.cgi,.lit_calendar_week:nth-child(2) > .lit_calendar_day:nth-child(3) > .day_number
+https://school.teachingbooks.net/Literary_Calendar.cgi,.lit_calendar_week:nth-child(2) > .lit_calendar_day:nth-child(2) > .day_number
+https://school.teachingbooks.net/Literary_Calendar.cgi,.lit_calendar_week:nth-child(2) > .lit_calendar_day:nth-child(1) > .day_number
+https://testrigor.com/,#b-4 > .trdc-icon-box.tR-dark-card
+https://www.kaercher.com/de/home-garden/hochdruckreiniger/k-7-premium-smart-control-flex-home-13173630.html,".col-md-7.col-xs-6 > .fc-close[data-kjs-click=""close""]"
+https://www.danone.com/,"#videoteaser-90fea48522 > .cmp-videoteaser__video > video[playsinline=""""]"
+https://www.danone.com/,"#videoteaser-be51fb35d7 > .cmp-videoteaser__video > video[autoplay=""true""][loop=""true""]"
+https://www.ubreakifix.com/locations/whitefishbay,.elements__YouTubeButton-sc-b59d98b8-3
+https://www.ubreakifix.com/locations/whitefishbay,".krRJDR > .StoreImageGallery__StoreImageGalleryContainer-sc-107159aa-0.bSNnBD > .StoreImageGallery__StoreImageGalleryInner-sc-107159aa-1.kEQuoA > .Gallery__ThumbnailContainer-sc-6367d938-3.bKmEDH > .kcuLGH.ImageThumbnail__ImageThumbnailContainer-sc-c28090b8-1[data-testid=""thumbnail-4""]"
+https://www.ubreakifix.com/locations/whitefishbay,".krRJDR > .StoreImageGallery__StoreImageGalleryContainer-sc-107159aa-0.bSNnBD > .StoreImageGallery__StoreImageGalleryInner-sc-107159aa-1.kEQuoA > .Gallery__ThumbnailContainer-sc-6367d938-3.bKmEDH > .kcuLGH.ImageThumbnail__ImageThumbnailContainer-sc-c28090b8-1[data-testid=""thumbnail-3""]"
+https://www.ubreakifix.com/locations/whitefishbay,".krRJDR > .StoreImageGallery__StoreImageGalleryContainer-sc-107159aa-0.bSNnBD > .StoreImageGallery__StoreImageGalleryInner-sc-107159aa-1.kEQuoA > .Gallery__ThumbnailContainer-sc-6367d938-3.bKmEDH > .kcuLGH.ImageThumbnail__ImageThumbnailContainer-sc-c28090b8-1[data-testid=""thumbnail-1""]"
+https://www.ubreakifix.com/locations/whitefishbay,".krRJDR > .StoreImageGallery__StoreImageGalleryContainer-sc-107159aa-0.bSNnBD > .StoreImageGallery__StoreImageGalleryInner-sc-107159aa-1.kEQuoA > .Gallery__ThumbnailContainer-sc-6367d938-3.bKmEDH > .ecVFVf.ImageThumbnail__ImageThumbnailContainer-sc-c28090b8-1[data-testid=""thumbnail-0""]"
+https://careers.asurion.com/us/en,#skipToMainContent
+https://onlineshop.haribo.com/,.notification-bar-collapse--header
+https://onlineshop.haribo.com/,.container--ajax-cart
+https://ba.gorenje.com/podrska,.support__pin-icon
+https://www.pacificlife.com/home/individuals/employee-benefits.html,.default
+https://www.avironactive.com/shop-a/,.DesktopHeader_button-login__GuXtq
+https://www.walgreens.com/offers/offers.jsp,#store-selector-trigger-desktop > .header-store.overflowInitial.truncate > div:nth-child(1) > span
+"https://karriere.drk-kliniken-berlin.de/,",.PageFooter__QuickApplicationLink-sc-56hj8z-5
+https://www.floralux.be/nl/,"flx-cf-add-to-wishlist-icon[itemid=""20250910_1""] > .m-card__favourite"
+https://www.floralux.be/nl/,"flx-cf-add-to-wishlist-icon[itemid=""200174831""] > .m-card__favourite"
+https://www.floralux.be/nl/,"flx-cf-add-to-wishlist-icon[itemid=""2025103""] > .m-card__favourite"
+https://testapp.socialfries.io/login,i
+https://www.bbrown.com/us/,#menu-item-275 > .ubermenu-target-with-icon.ubermenu-item-layout-icon_left.ubermenu-item-notext
+https://counseling.ufl.edu/resources/,.esg-sortbutton-order
+https://counseling.ufl.edu/resources/,.eg-search-clean
+https://counseling.ufl.edu/resources/,.eg-search-submit
+https://usercentrics.com/,".uc-notification__close > svg[viewBox=""0 0 24 24""][width=""24""][height=""24""]"
+https://aicandy.vn/ve-do-thi-ham-so/,"a[data-title=""Reset axes""]"

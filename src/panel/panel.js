@@ -241,7 +241,8 @@ function initializePanel() {
   const falsePositivesEl = document.getElementById("falsePositives");
   const falseNegativesEl = document.getElementById("falseNegatives");
   const notValidEl = document.getElementById("notValid");
-  const needsReviewEl = document.getElementById("needsReview"); // Added
+  const notViolationsEl = document.getElementById("notViolations");
+  const needsReviewEl = document.getElementById("needsReview");
   const pendingEl = document.getElementById("pending");
 
   const currentSelector = document.getElementById("currentSelector");
@@ -919,6 +920,48 @@ function initializePanel() {
     return canvas.toDataURL("image/jpeg", 0.82);
   }
 
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+  }
+
+  function getPreferredRestorePosition(metrics, screenshotTarget) {
+    const maxX = Math.max(metrics.fullWidth - metrics.viewportWidth, 0);
+    const maxY = Math.max(metrics.fullHeight - metrics.viewportHeight, 0);
+
+    const fallback = {
+      x: clamp(metrics.scrollX || 0, 0, maxX),
+      y: clamp(metrics.scrollY || 0, 0, maxY),
+    };
+
+    if (!screenshotTarget) {
+      return fallback;
+    }
+
+    const targetX = Number(screenshotTarget.x);
+    const targetY = Number(screenshotTarget.y);
+    const targetWidth = Number(screenshotTarget.width || 0);
+    const targetHeight = Number(screenshotTarget.height || 0);
+
+    if (!Number.isFinite(targetX) || !Number.isFinite(targetY)) {
+      return fallback;
+    }
+
+    // Prefer restoring with the target near viewport center so users land back on the element.
+    const centeredX =
+      (metrics.scrollX || 0) +
+      targetX -
+      (metrics.viewportWidth - targetWidth) / 2;
+    const centeredY =
+      (metrics.scrollY || 0) +
+      targetY -
+      (metrics.viewportHeight - targetHeight) / 2;
+
+    return {
+      x: clamp(Math.round(centeredX), 0, maxX),
+      y: clamp(Math.round(centeredY), 0, maxY),
+    };
+  }
+
   // Optimize full page screenshot with better batching
   async function prepareFullPageContextScreenshotForAI() {
     try {
@@ -926,6 +969,10 @@ function initializePanel() {
       const metrics = await sendMessageToCaptureTab(
         tabId,
         "GET_CAPTURE_DIMENSIONS",
+      );
+      const restorePosition = getPreferredRestorePosition(
+        metrics,
+        currentElementData.screenshotTarget,
       );
 
       // Check if we can use a single screenshot (small page)
@@ -990,9 +1037,10 @@ function initializePanel() {
         }
       } finally {
         await sendMessageToCaptureTab(tabId, "SCROLL_TO_CAPTURE_POSITION", {
-          x: metrics.scrollX,
-          y: metrics.scrollY,
+          x: restorePosition.x,
+          y: restorePosition.y,
         }).catch(() => {});
+        await delay(120);
       }
 
       const contextScreenshot = await stitchFullPageScreenshot(tiles, metrics);
@@ -1018,6 +1066,9 @@ function initializePanel() {
   async function triggerCurrentElementAIAnalysis(
     triggerSource = "element update",
   ) {
+    // Add a small delay for page stability before screenshots
+    await delay(1000);
+
     const evaluateCheckbox = document.getElementById("evaluateUsingAi");
 
     if (!evaluateCheckbox) {
@@ -1205,7 +1256,14 @@ function initializePanel() {
             if (btnId) {
               const btn = document.getElementById(btnId);
               if (btn) {
-                btn.click();
+                // Update visual state and selected status manually since buttons are disabled in automated mode
+                Object.keys(statusButtons).forEach((id) => {
+                  const otherBtn = document.getElementById(id);
+                  if (otherBtn) otherBtn.classList.remove("selected");
+                });
+                btn.classList.add("selected");
+                selectedStatus = statusStr;
+                previewStatusChange(btnId);
               }
             }
 
@@ -1217,6 +1275,13 @@ function initializePanel() {
                 comments: commentStr,
               },
             });
+
+            if (automatedMode) {
+              console.log("Automated mode: Moving to next URL after AI mark...");
+              setTimeout(() => {
+                moveToNextUrl();
+              }, 2000);
+            }
           } else {
             showNotification(
               `AI confidence is ${confidence}%. Review the AI result and update the status manually.`,
@@ -1241,7 +1306,11 @@ function initializePanel() {
 
   const evaluateUsingAiCheckbox = document.getElementById("evaluateUsingAi");
   if (evaluateUsingAiCheckbox) {
+    chrome.storage.local.set({
+      evaluateUsingAi: evaluateUsingAiCheckbox.checked,
+    });
     evaluateUsingAiCheckbox.addEventListener("change", function () {
+      chrome.storage.local.set({ evaluateUsingAi: this.checked });
       if (this.checked) {
         setAIAnalysisFeedback(
           hasCurrentElementData() ? "loading" : "waiting",
@@ -2079,6 +2148,9 @@ function initializePanel() {
 
   // Function to move to the next URL
   function moveToNextUrl() {
+    if (processingNextUrl) return;
+    processingNextUrl = true;
+
     if (nextUrlBtn) {
       nextUrlBtn.disabled = true;
       nextUrlBtn.textContent = "Loading...";
@@ -2137,7 +2209,7 @@ function initializePanel() {
         console.log("Next URL response:", nextResponse);
 
         if (nextUrlBtn) {
-          nextUrlBtn.disabled = false;
+          nextUrlBtn.disabled = automatedMode;
           nextUrlBtn.textContent = "Next URL"; // Reset button text
         }
 
@@ -2189,7 +2261,7 @@ function initializePanel() {
 
     // Re-enable navigation
     if (nextUrlBtn) {
-      nextUrlBtn.disabled = false;
+      nextUrlBtn.disabled = automatedMode;
       nextUrlBtn.textContent = "Next URL";
     }
   }
@@ -2778,9 +2850,11 @@ function initializePanel() {
       falsePositivesEl.textContent = summary.falsePositives.toString();
     if (falseNegativesEl)
       falseNegativesEl.textContent = summary.falseNegatives.toString();
-    if (notValidEl) notValidEl.textContent = summary.notValid.toString();
+    if (notValidEl) notValidEl.textContent = (summary.notValid || 0).toString();
+    if (notViolationsEl)
+      notViolationsEl.textContent = (summary.notViolations || 0).toString(); // Added
     if (needsReviewEl)
-      needsReviewEl.textContent = summary.needsReview.toString(); // Added
+      needsReviewEl.textContent = (summary.needsReview || 0).toString();
     if (pendingEl) pendingEl.textContent = summary.pending.toString();
 
     // Update export button based on results
@@ -2815,9 +2889,11 @@ function initializePanel() {
       falseNegatives: 0,
       notValid: 0,
       needsReview: 0, // Added
+      notViolations: 0, // Added
       pending: 0,
     };
 
+    let skipped = 0;
     data.forEach((row) => {
       if (!row.status || row.status === "Pending") {
         summary.pending++;
@@ -2831,6 +2907,10 @@ function initializePanel() {
         summary.notValid++;
       } else if (row.status === "Needs Review") {
         summary.needsReview++;
+      } else if (row.status === "Not a Violation") {
+        summary.notViolations++;
+      } else if (row.status === "Skipped") {
+        skipped++;
       }
     });
 
@@ -2841,7 +2921,9 @@ function initializePanel() {
       summary.falseNegatives +
       summary.notValid +
       summary.needsReview +
-      summary.pending;
+      summary.notViolations +
+      summary.pending +
+      skipped;
 
     if (verified !== summary.totalNodes) {
       console.warn(
@@ -2963,18 +3045,35 @@ function initializePanel() {
 
     // Add event listener for toggle changes
     modeToggleInput.addEventListener("change", function () {
-      automatedMode = this.checked;
-      modeText.textContent = automatedMode ? "Automated Mode" : "Manual Mode";
+      const requestedAutomatedMode = this.checked;
 
       // Send message to background script about mode change
-      chrome.runtime.sendMessage({
-        action: "TOGGLE_VALIDATION_MODE",
-        payload: {
-          automated: automatedMode,
+      chrome.runtime.sendMessage(
+        {
+          action: "TOGGLE_VALIDATION_MODE",
+          payload: {
+            automated: requestedAutomatedMode,
+          },
         },
-      });
-    });
+        function (response) {
+          if (!response || !response.success) {
+            automatedMode = false;
+            modeToggleInput.checked = false;
+            modeText.textContent = "Manual Mode";
+            showNotification(
+              response?.error || "Unable to enable automated mode",
+              "error",
+            );
+            return;
+          }
 
+          automatedMode = requestedAutomatedMode;
+          modeText.textContent = automatedMode
+            ? "Automated Mode (AI Enabled)"
+            : "Manual Mode";
+        },
+      );
+    });
     // Move AI rule selector to the dashboard title next to the mode toggle
     const aiRuleSelector = document.querySelector(".ai-rule-selector-inline");
     if (aiRuleSelector) {
@@ -3398,6 +3497,8 @@ async function initializeAIFeatures() {
   const aiToggle = document.getElementById("aiOptToggle");
   const aiAnalysisSection = document.querySelector(".ai-analysis-section");
 
+  chrome.storage.local.set({ aiOptEnabled: aiEnabled });
+
   // Set initial toggle state
   if (aiToggle) {
     aiToggle.checked = aiEnabled;
@@ -3406,6 +3507,7 @@ async function initializeAIFeatures() {
     aiToggle.addEventListener("change", function () {
       const enabled = this.checked;
       localStorage.setItem("aiOptEnabled", enabled);
+      chrome.storage.local.set({ aiOptEnabled: enabled });
 
       // Show/hide AI analysis section
       if (aiAnalysisSection) {
@@ -3825,4 +3927,34 @@ async function initializeAIFeatures() {
       promptEditModal.style.display = "none";
     });
   }
+}
+
+// Update mode UI
+function updateModeUI() {
+  console.log("Updating mode UI. Automated mode:", automatedMode);
+  const modeText = document.getElementById("modeText");
+  if (modeText) {
+    modeText.textContent = automatedMode
+      ? "Automated Mode (AI Enabled)"
+      : "Manual Mode";
+  }
+}
+
+// Listen for PROMPT_NEXT_URL message
+chrome.runtime.onMessage.addListener(function (message) {
+  console.log("Received message:", message);
+  if (message.action === "PROMPT_NEXT_URL") {
+    console.log("Prompting user to click Next URL");
+    showNotification(message.message, "info");
+  }
+});
+
+// Call updateModeUI when mode changes
+const modeToggleInput = document.getElementById("modeToggle");
+if (modeToggleInput) {
+  modeToggleInput.addEventListener("change", function () {
+    automatedMode = this.checked;
+    console.log("Mode toggle changed. Automated mode:", automatedMode);
+    updateModeUI();
+  });
 }
