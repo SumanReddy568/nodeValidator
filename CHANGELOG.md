@@ -1,3 +1,9 @@
+## [1.2.6] - 2026-03-23
+- add missing file to zip
+
+## [1.2.5] - 2026-03-23
+- add missing file to zip
+
 ## [1.2.3] - 2026-03-23
 - Merge pull request #10 from SumanReddy568/ai_labelling_poc ai poc vertex llm addition
 
