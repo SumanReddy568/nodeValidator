@@ -441,7 +441,7 @@
         /**
          * Analyze element against selected accessibility rule
          */
-        async analyzeElement(elementData) {
+        async analyzeElement(elementData, options = {}) {
             if (!this.isProviderConfigured(this.currentProvider)) {
                 return {
                     success: false,
@@ -458,7 +458,12 @@
 
             try {
                 this.isAnalyzing = true;
-                const prompt = this.generatePrompt(elementData, this.currentRule);
+                let prompt;
+                if (this.currentRule.id === 'role-required' && window.generateRoleRequiredPrompt) {
+                    prompt = window.generateRoleRequiredPrompt(elementData);
+                } else {
+                    prompt = this.generatePrompt(elementData, this.currentRule);
+                }
                 console.log(`Calling ${this.providers[this.currentProvider].name} API...`);
                 
                 let apiResponse;

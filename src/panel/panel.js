@@ -625,6 +625,86 @@ function initializePanel() {
 
                 // Update current element data for AI analysis
                 updateCurrentElementData(message.payload);
+
+                // Check if we need to auto-evaluate with AI
+                const evaluateCheckbox = document.getElementById('evaluateUsingAi');
+                
+                if (evaluateCheckbox && evaluateCheckbox.checked) {
+                    const ruleId = document.getElementById('accessibilityRuleSelect')?.value || 'role-required';
+                    if (window.aiAnalyzer && typeof window.aiAnalyzer.setCurrentRule === 'function') {
+                        window.aiAnalyzer.setCurrentRule(ruleId);
+                        
+                        // Show loading state
+                        const resultContainer = document.getElementById('aiAnalysisResult') || (() => {
+                            const c = document.createElement('div');
+                            c.id = 'aiAnalysisResult';
+                            const parent = document.getElementById('aiAnalysisContent');
+                            if (parent) parent.appendChild(c);
+                            return c;
+                        })();
+                        
+                        if (resultContainer) {
+                            resultContainer.innerHTML = `
+                                <div class="ai-loading">
+                                    <p>Analyzing accessibility with AI...</p>
+                                </div>
+                            `;
+                        }
+                        
+                        // Run analysis
+                        window.aiAnalyzer.analyzeElement(currentElementData)
+                            .then(result => {
+                                if (window.renderAIAnalysisResult && resultContainer) {
+                                    window.renderAIAnalysisResult(result, resultContainer);
+                                }
+                                
+                                // Auto-mark based on AI result
+                                if (result.success && result.result) {
+                                    const aiData = result.result;
+                                    const confidence = parseInt(aiData.Confidence, 10) || 0;
+                                    const status = aiData.status?.toUpperCase() || 'UNKNOWN';
+                                    const summary = aiData.summary || '';
+                                    
+                                    let statusStr, commentStr;
+                                    if (status === 'FAIL') {
+                                        statusStr = 'True Positive';
+                                        commentStr = `[AI Auto] TP. Reason: ${summary}`;
+                                    } else if (confidence < 80 || status === 'PASS') {
+                                        statusStr = 'Needs Review';
+                                        commentStr = `[AI Review] Confidence: ${confidence}%. Reason: ${summary}`;
+                                    }
+                                    
+                                    if (statusStr) {
+                                        const notes = document.getElementById('validation-notes') || document.getElementById('statusNotes');
+                                        if (notes) notes.value = commentStr;
+                                        
+                                        // Find button
+                                        const btnId = Object.keys(statusButtons).find(key => statusButtons[key] === statusStr);
+                                        if (btnId) {
+                                            const btn = document.getElementById(btnId);
+                                            if (btn) btn.click();
+                                        }
+                                        
+                                        // Send to background to save
+                                        chrome.runtime.sendMessage({
+                                            action: 'UPDATE_STATUS',
+                                            payload: {
+                                                index: currentIndex,
+                                                status: statusStr,
+                                                comments: commentStr
+                                            }
+                                        });
+                                    }
+                                }
+                            })
+                            .catch(err => {
+                                console.error('AI analysis error:', err);
+                                if (resultContainer) {
+                                    resultContainer.innerHTML = `<p style="color: #ea4335;">Failed to analyze: ${err.message}</p>`;
+                                }
+                            });
+                    }
+                }
             }
             // Handle various message types
             if (message.action === 'UPDATE_STATUS_RESULT') {
@@ -2457,397 +2537,10 @@ async function initializeAIFeatures() {
     });
 
     // Populate the UI with the loaded rules
-    populateRulesList();
     populateRuleDropdown();
 }
 
-// Initialize rules management
-function initializeRulesManagement() {
-    const addRuleBtn = document.getElementById('addRuleBtn');
-    const ruleDialog = document.getElementById('ruleDialog');
-    const cancelRuleBtn = document.getElementById('cancelRuleBtn');
-    const saveRuleBtn = document.getElementById('saveRuleBtn');
-    const addCriterionBtn = document.getElementById('addCriterionBtn');
 
-    if (!addRuleBtn || !ruleDialog || !cancelRuleBtn || !saveRuleBtn || !addCriterionBtn) {
-        console.warn('One or more rule management elements not found');
-        return;
-    }
-
-    // Open dialog to add new rule
-    addRuleBtn.addEventListener('click', function () {
-        openRuleDialog();
-    });
-
-    // Cancel rule dialog
-    cancelRuleBtn.addEventListener('click', function () {
-        ruleDialog.classList.remove('open');
-    });
-
-    // Add criterion
-    addCriterionBtn.addEventListener('click', function () {
-        addCriterion();
-    });
-
-    // Enter key in criterion input
-    const newCriterionInput = document.getElementById('newCriterion');
-    if (newCriterionInput) {
-        newCriterionInput.addEventListener('keypress', function (event) {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                addCriterion();
-            }
-        });
-    }
-
-    // Save rule
-    saveRuleBtn.addEventListener('click', function () {
-        saveRule();
-    });
-}
-
-// Initialize AI analysis UI
-function initializeAIAnalysis() {
-    const accessibilityRuleSelect = document.getElementById('accessibilityRuleSelect');
-    const analyzeWithAIBtn = document.getElementById('analyzeWithAI');
-
-    if (!accessibilityRuleSelect || !analyzeWithAIBtn) {
-        console.warn('AI analysis UI elements not found');
-        return;
-    }
-
-    // Enable/disable analyze button based on rule selection
-    accessibilityRuleSelect.addEventListener('change', function () {
-        const ruleId = this.value;
-        analyzeWithAIBtn.disabled = !ruleId;
-
-        if (ruleId) {
-            window.aiAnalyzer.setCurrentRule(ruleId);
-        }
-    });
-
-    // Analyze button click
-    analyzeWithAIBtn.addEventListener('click', function () {
-        if (!window.aiAnalyzer || window.aiAnalyzer.isAnalyzing) return;
-
-        // Show loading indicator
-        this.innerHTML = '<div class="ai-spinner"></div><span>Analyzing...</span>';
-        this.disabled = true;
-
-        const aiAnalysisPanel = document.getElementById('aiAnalysisPanel');
-        const aiAnalysisContent = document.getElementById('aiAnalysisContent');
-        const aiAnalysisTitle = document.getElementById('aiAnalysisTitle');
-
-        if (!aiAnalysisPanel || !aiAnalysisContent || !aiAnalysisTitle) {
-            console.warn('AI analysis panel elements not found');
-            this.innerHTML = '<span>Analyze</span>';
-            this.disabled = false;
-            return;
-        }
-
-        // Show the panel with loading message
-        aiAnalysisPanel.style.display = 'block';
-        aiAnalysisTitle.textContent = 'Analyzing...';
-        aiAnalysisContent.innerHTML = '<p>AI is analyzing the element against the selected rule...</p>';
-
-        // Fetch page source before running AI analysis
-        chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-            if (!tabs[0]) {
-                analyzeWithAIBtn.innerHTML = '<span>Analyze</span>';
-                analyzeWithAIBtn.disabled = false;
-                aiAnalysisContent.innerHTML = `<p style="color: #d93025;">Error: No active tab found.</p>`;
-                return;
-            }
-            chrome.tabs.sendMessage(tabs[0].id, { action: 'GET_PAGE_SOURCE' }, function (response) {
-                if (response && response.html) {
-                    currentElementData.pageSource = response.html;
-                } else {
-                    currentElementData.pageSource = '-';
-                }
-
-                window.aiAnalyzer.analyzeElement(currentElementData)
-                    .then(result => {
-                        // Reset button
-                        analyzeWithAIBtn.innerHTML = '<span>Analyze</span>';
-                        analyzeWithAIBtn.disabled = false;
-
-                        if (result.success) {
-                            aiAnalysisTitle.textContent = result.ruleName || 'AI Analysis';
-                            renderAIAnalysisResult(result.result, aiAnalysisContent);
-                        } else {
-                            aiAnalysisContent.innerHTML = `<p style="color: #d93025;">Error: ${result.error}</p>`;
-                        }
-                    })
-                    .catch(error => {
-                        analyzeWithAIBtn.innerHTML = '<span>Analyze</span>';
-                        analyzeWithAIBtn.disabled = false;
-                        aiAnalysisContent.innerHTML = `<p style="color: #d93025;">Error: ${error.message || 'Unknown error'}</p>`;
-                        console.error('AI analysis error:', error);
-                    });
-            });
-        });
-    });
-}
-
-// Render AI analysis result - updated to use the externalized function
-function renderAIAnalysisResult(result, container) {
-    // Use the window-level function defined in aiUIHandler.js
-    if (window.renderAIAnalysisResult && window.renderAIAnalysisResult !== renderAIAnalysisResult) {
-        window.renderAIAnalysisResult(result, container);
-        return;
-    }
-
-    // Fallback if the global function isn't available
-    if (!result) {
-        container.innerHTML = '<p style="color: #d93025;">Analysis failed: No result data received.</p>';
-        return;
-    }
-
-    const statusClass = result.status && result.status.toLowerCase() === 'pass' ? 'pass' : 'fail';
-    const statusText = result.status || 'N/A';
-    const summaryText = result.summary || 'No summary provided.';
-    const detailsText = result.details || 'No detailed explanation provided.';
-    const suggestionsText = result.suggestions || 'No suggestions provided.';
-
-    // Create a container div
-    const resultDiv = document.createElement('div');
-    resultDiv.className = 'ai-result';
-
-    // Add status
-    const statusDiv = document.createElement('div');
-    statusDiv.className = 'ai-result-status ' + statusClass;
-    statusDiv.textContent = statusText;
-    resultDiv.appendChild(statusDiv);
-
-    // Add summary
-    const summaryDiv = document.createElement('div');
-    summaryDiv.className = 'ai-result-summary';
-    const summaryLabel = document.createElement('strong');
-    summaryLabel.textContent = 'Summary: ';
-    summaryDiv.appendChild(summaryLabel);
-    summaryDiv.appendChild(document.createTextNode(summaryText));
-    resultDiv.appendChild(summaryDiv);
-
-    // Add details
-    const detailsDiv = document.createElement('div');
-    detailsDiv.className = 'ai-result-details';
-    const detailsLabel = document.createElement('strong');
-    detailsLabel.textContent = 'Details: ';
-    detailsDiv.appendChild(detailsLabel);
-    detailsDiv.appendChild(document.createTextNode(detailsText));
-    resultDiv.appendChild(detailsDiv);
-
-    // Add suggestions
-    const suggestionsDiv = document.createElement('div');
-    suggestionsDiv.className = 'ai-result-suggestions';
-    const suggestionsLabel = document.createElement('strong');
-    suggestionsLabel.textContent = 'Suggestions: ';
-    suggestionsDiv.appendChild(suggestionsLabel);
-    suggestionsDiv.appendChild(document.createTextNode(suggestionsText));
-    resultDiv.appendChild(suggestionsDiv);
-
-    // Clear container and append result
-    container.innerHTML = '';
-    container.appendChild(resultDiv);
-}
-
-// Add a new criterion to the list
-function addCriterion() {
-    const newCriterion = document.getElementById('newCriterion');
-    const criteriaList = document.getElementById('ruleCriteriaList');
-
-    if (!newCriterion || !criteriaList) return;
-
-    const criterionText = newCriterion.value.trim();
-
-    if (criterionText) {
-        const criteriaItem = document.createElement('div');
-        criteriaItem.className = 'rule-criteria-item';
-        criteriaItem.innerHTML = `
-            <span>${criterionText}</span>
-            <button type="button" class="rule-action-btn remove-criterion">×</button>
-        `;
-
-        criteriaList.appendChild(criteriaItem);
-
-        // Add event listener to remove button
-        criteriaItem.querySelector('.remove-criterion').addEventListener('click', function () {
-            criteriaList.removeChild(criteriaItem);
-        });
-
-        // Clear input
-        newCriterion.value = '';
-    }
-}
-
-// Open rule dialog for adding or editing a rule
-function openRuleDialog(ruleId = null) {
-    const dialog = document.getElementById('ruleDialog');
-    const dialogTitle = document.getElementById('ruleDialogTitle');
-    const ruleForm = document.getElementById('ruleForm');
-    const criteriaList = document.getElementById('ruleCriteriaList');
-
-    if (!dialog || !dialogTitle || !ruleForm || !criteriaList) return;
-
-    // Clear form
-    ruleForm.reset();
-    criteriaList.innerHTML = '';
-
-    if (ruleId) {
-        // Edit mode
-        dialogTitle.textContent = 'Edit Rule';
-
-        // Find rule
-        const rule = window.aiAnalyzer.rules.find(r => r.id === ruleId);
-        if (rule) {
-            document.getElementById('ruleId').value = rule.id;
-            document.getElementById('ruleName').value = rule.name || '';
-            document.getElementById('ruleDescription').value = rule.description || '';
-            document.getElementById('ruleDetails').value = rule.details || '';
-
-            // Add criteria
-            if (rule.criteria && rule.criteria.length > 0) {
-                rule.criteria.forEach(criterion => {
-                    const criteriaItem = document.createElement('div');
-                    criteriaItem.className = 'rule-criteria-item';
-                    criteriaItem.innerHTML = `
-                        <span>${criterion}</span>
-                        <button type="button" class="rule-action-btn remove-criterion">×</button>
-                    `;
-
-                    criteriaList.appendChild(criteriaItem);
-
-                    // Add event listener to remove button
-                    criteriaItem.querySelector('.remove-criterion').addEventListener('click', function () {
-                        criteriaList.removeChild(criteriaItem);
-                    });
-                });
-            }
-        }
-    } else {
-        // Add mode
-        dialogTitle.textContent = 'Add Rule';
-        document.getElementById('ruleId').value = '';
-    }
-
-    // Open dialog
-    dialog.classList.add('open');
-}
-
-// Save the rule
-async function saveRule() {
-    const ruleId = document.getElementById('ruleId').value;
-    const ruleName = document.getElementById('ruleName').value.trim();
-    const ruleDescription = document.getElementById('ruleDescription').value.trim();
-    const ruleDetails = document.getElementById('ruleDetails').value.trim();
-
-    // Get criteria
-    const criteriaElements = document.querySelectorAll('#ruleCriteriaList .rule-criteria-item span');
-    const criteria = Array.from(criteriaElements).map(el => el.textContent.trim());
-
-    // Validate form
-    if (!ruleName || !ruleDescription) {
-        showNotification('Please fill in all required fields', 'warning');
-        return;
-    }
-
-    // Create rule object
-    const rule = {
-        name: ruleName,
-        description: ruleDescription,
-        details: ruleDetails,
-        criteria: criteria
-    };
-
-    let result;
-
-    if (ruleId) {
-        // Update existing rule
-        rule.id = ruleId;
-        result = await window.aiAnalyzer.updateRule(ruleId, rule);
-    } else {
-        // Add new rule
-        result = await window.aiAnalyzer.addRule(rule);
-    }
-
-    if (result && result.success) {
-        // Close dialog
-        document.getElementById('ruleDialog').classList.remove('open');
-
-        // Refresh rules list
-        populateRulesList();
-
-        // Refresh dropdown
-        populateRuleDropdown();
-
-        showNotification('Rule saved successfully', 'success');
-    } else {
-        showNotification('Failed to save rule: ' + (result ? result.error : 'Unknown error'), 'error');
-    }
-}
-
-// Populate the rules list in settings
-function populateRulesList() {
-    const rulesList = document.getElementById('rulesList');
-    if (!rulesList || !window.aiAnalyzer || !window.aiAnalyzer.rules) return;
-
-    rulesList.innerHTML = '';
-
-    const rules = window.aiAnalyzer.rules;
-
-    if (rules && rules.length > 0) {
-        rules.forEach(rule => {
-            const ruleItem = document.createElement('div');
-            ruleItem.className = 'rule-item';
-            ruleItem.innerHTML = `
-                <span class="rule-name">${rule.name}</span>
-                <div class="rule-actions">
-                    <button type="button" class="rule-action-btn edit-rule" data-rule-id="${rule.id}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                        </svg>
-                    </button>
-                    <button type="button" class="rule-action-btn delete-rule" data-rule-id="${rule.id}">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 6h18"></path>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path>
-                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        </svg>
-                    </button>
-                </div>
-            `;
-
-            rulesList.appendChild(ruleItem);
-        });
-
-        // Add event listeners
-        document.querySelectorAll('.edit-rule').forEach(button => {
-            button.addEventListener('click', function () {
-                const ruleId = this.getAttribute('data-rule-id');
-                openRuleDialog(ruleId);
-            });
-        });
-
-        document.querySelectorAll('.delete-rule').forEach(button => {
-            button.addEventListener('click', async function () {
-                const ruleId = this.getAttribute('data-rule-id');
-                if (confirm('Are you sure you want to delete this rule?')) {
-                    const result = await window.aiAnalyzer.deleteRule(ruleId);
-                    if (result && result.success) {
-                        populateRulesList();
-                        populateRuleDropdown();
-                        showNotification('Rule deleted successfully', 'success');
-                    } else {
-                        showNotification('Failed to delete rule: ' + (result ? result.error : 'Unknown error'), 'error');
-                    }
-                }
-            });
-        });
-    } else {
-        rulesList.innerHTML = '<p>No rules found. Add a rule to get started.</p>';
-    }
-}
 
 // Populate the rule dropdown
 function populateRuleDropdown() {
