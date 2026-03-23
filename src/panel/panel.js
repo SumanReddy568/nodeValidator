@@ -919,6 +919,48 @@ function initializePanel() {
     return canvas.toDataURL("image/jpeg", 0.82);
   }
 
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+  }
+
+  function getPreferredRestorePosition(metrics, screenshotTarget) {
+    const maxX = Math.max(metrics.fullWidth - metrics.viewportWidth, 0);
+    const maxY = Math.max(metrics.fullHeight - metrics.viewportHeight, 0);
+
+    const fallback = {
+      x: clamp(metrics.scrollX || 0, 0, maxX),
+      y: clamp(metrics.scrollY || 0, 0, maxY),
+    };
+
+    if (!screenshotTarget) {
+      return fallback;
+    }
+
+    const targetX = Number(screenshotTarget.x);
+    const targetY = Number(screenshotTarget.y);
+    const targetWidth = Number(screenshotTarget.width || 0);
+    const targetHeight = Number(screenshotTarget.height || 0);
+
+    if (!Number.isFinite(targetX) || !Number.isFinite(targetY)) {
+      return fallback;
+    }
+
+    // Prefer restoring with the target near viewport center so users land back on the element.
+    const centeredX =
+      (metrics.scrollX || 0) +
+      targetX -
+      (metrics.viewportWidth - targetWidth) / 2;
+    const centeredY =
+      (metrics.scrollY || 0) +
+      targetY -
+      (metrics.viewportHeight - targetHeight) / 2;
+
+    return {
+      x: clamp(Math.round(centeredX), 0, maxX),
+      y: clamp(Math.round(centeredY), 0, maxY),
+    };
+  }
+
   // Optimize full page screenshot with better batching
   async function prepareFullPageContextScreenshotForAI() {
     try {
@@ -926,6 +968,10 @@ function initializePanel() {
       const metrics = await sendMessageToCaptureTab(
         tabId,
         "GET_CAPTURE_DIMENSIONS",
+      );
+      const restorePosition = getPreferredRestorePosition(
+        metrics,
+        currentElementData.screenshotTarget,
       );
 
       // Check if we can use a single screenshot (small page)
@@ -990,9 +1036,10 @@ function initializePanel() {
         }
       } finally {
         await sendMessageToCaptureTab(tabId, "SCROLL_TO_CAPTURE_POSITION", {
-          x: metrics.scrollX,
-          y: metrics.scrollY,
+          x: restorePosition.x,
+          y: restorePosition.y,
         }).catch(() => {});
+        await delay(120);
       }
 
       const contextScreenshot = await stitchFullPageScreenshot(tiles, metrics);
@@ -1241,7 +1288,11 @@ function initializePanel() {
 
   const evaluateUsingAiCheckbox = document.getElementById("evaluateUsingAi");
   if (evaluateUsingAiCheckbox) {
+    chrome.storage.local.set({
+      evaluateUsingAi: evaluateUsingAiCheckbox.checked,
+    });
     evaluateUsingAiCheckbox.addEventListener("change", function () {
+      chrome.storage.local.set({ evaluateUsingAi: this.checked });
       if (this.checked) {
         setAIAnalysisFeedback(
           hasCurrentElementData() ? "loading" : "waiting",
@@ -2963,18 +3014,35 @@ function initializePanel() {
 
     // Add event listener for toggle changes
     modeToggleInput.addEventListener("change", function () {
-      automatedMode = this.checked;
-      modeText.textContent = automatedMode ? "Automated Mode" : "Manual Mode";
+      const requestedAutomatedMode = this.checked;
 
       // Send message to background script about mode change
-      chrome.runtime.sendMessage({
-        action: "TOGGLE_VALIDATION_MODE",
-        payload: {
-          automated: automatedMode,
+      chrome.runtime.sendMessage(
+        {
+          action: "TOGGLE_VALIDATION_MODE",
+          payload: {
+            automated: requestedAutomatedMode,
+          },
         },
-      });
-    });
+        function (response) {
+          if (!response || !response.success) {
+            automatedMode = false;
+            modeToggleInput.checked = false;
+            modeText.textContent = "Manual Mode";
+            showNotification(
+              response?.error || "Unable to enable automated mode",
+              "error",
+            );
+            return;
+          }
 
+          automatedMode = requestedAutomatedMode;
+          modeText.textContent = automatedMode
+            ? "Automated Mode (AI Enabled)"
+            : "Manual Mode";
+        },
+      );
+    });
     // Move AI rule selector to the dashboard title next to the mode toggle
     const aiRuleSelector = document.querySelector(".ai-rule-selector-inline");
     if (aiRuleSelector) {
@@ -3398,6 +3466,8 @@ async function initializeAIFeatures() {
   const aiToggle = document.getElementById("aiOptToggle");
   const aiAnalysisSection = document.querySelector(".ai-analysis-section");
 
+  chrome.storage.local.set({ aiOptEnabled: aiEnabled });
+
   // Set initial toggle state
   if (aiToggle) {
     aiToggle.checked = aiEnabled;
@@ -3406,6 +3476,7 @@ async function initializeAIFeatures() {
     aiToggle.addEventListener("change", function () {
       const enabled = this.checked;
       localStorage.setItem("aiOptEnabled", enabled);
+      chrome.storage.local.set({ aiOptEnabled: enabled });
 
       // Show/hide AI analysis section
       if (aiAnalysisSection) {
@@ -3825,4 +3896,34 @@ async function initializeAIFeatures() {
       promptEditModal.style.display = "none";
     });
   }
+}
+
+// Update mode UI
+function updateModeUI() {
+  console.log("Updating mode UI. Automated mode:", automatedMode);
+  const modeText = document.getElementById("modeText");
+  if (modeText) {
+    modeText.textContent = automatedMode
+      ? "Automated Mode (AI Enabled)"
+      : "Manual Mode";
+  }
+}
+
+// Listen for PROMPT_NEXT_URL message
+chrome.runtime.onMessage.addListener(function (message) {
+  console.log("Received message:", message);
+  if (message.action === "PROMPT_NEXT_URL") {
+    console.log("Prompting user to click Next URL");
+    showNotification(message.message, "info");
+  }
+});
+
+// Call updateModeUI when mode changes
+const modeToggleInput = document.getElementById("modeToggle");
+if (modeToggleInput) {
+  modeToggleInput.addEventListener("change", function () {
+    automatedMode = this.checked;
+    console.log("Mode toggle changed. Automated mode:", automatedMode);
+    updateModeUI();
+  });
 }
