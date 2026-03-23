@@ -1,3 +1,6 @@
+## [1.3.0] - 2026-03-23
+- Merge pull request #12 from SumanReddy568/v2_update V2 update
+
 ## [1.2.9] - 2026-03-23
 - prompt changes
 
