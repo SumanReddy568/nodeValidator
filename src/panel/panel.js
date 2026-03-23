@@ -2283,7 +2283,7 @@ function initializePanel() {
       dashboardTitle.appendChild(modeToggleContainer);
     }
 
-    // Set up the toggle handler
+    // Add event listener for toggle changes
     modeToggleInput.addEventListener("change", function () {
       automatedMode = this.checked;
       modeText.textContent = automatedMode ? "Automated Mode" : "Manual Mode";
@@ -2296,6 +2296,17 @@ function initializePanel() {
         },
       });
     });
+
+    // Move AI rule selector to the dashboard title next to the mode toggle
+    const aiRuleSelector = document.querySelector(".ai-rule-selector-inline");
+    if (aiRuleSelector) {
+      // Add more consistent styling since it's now in the header
+      aiRuleSelector.style.marginLeft = "20px";
+      aiRuleSelector.style.paddingLeft = "20px";
+      aiRuleSelector.style.borderLeft = "1px solid var(--gray-300)";
+      
+      modeToggleContainer.parentNode.insertBefore(aiRuleSelector, modeToggleContainer.nextSibling);
+    }
   }
 
   // Add CSS for the notification system
@@ -2497,34 +2508,68 @@ function formatHtmlForDisplay(html) {
   if (!html || html === "-") return "-";
 
   try {
-    // Ensure html is a string
     const htmlString = String(html);
 
+    // Basic HTML Beautifier (Indentation)
+    let formatted = "";
+    let indent = "";
+    const tab = "  "; // 2 spaces
+    
+    // Split by tags
+    const parts = htmlString.split(/(<[^>]*>)/);
+    
+    parts.forEach(part => {
+        if (!part.trim()) return;
+        
+        if (part.startsWith('</')) {
+            // Closing tag
+            indent = indent.substring(tab.length);
+            formatted += "\n" + indent + part;
+        } else if (part.startsWith('<') && !part.endsWith('/>') && !part.startsWith('<!')) {
+            // Opening tag (excluding self-closing and special tags)
+            formatted += "\n" + indent + part;
+            // Only indent if not a self-closing tag or special tag
+            // (A very basic check, but works for common elements)
+            if (!part.match(/<(img|br|hr|input|meta|link|area|base|col|embed|param|source|track|wbr)[^>]*>/i)) {
+                indent += tab;
+            }
+        } else if (part.startsWith('<')) {
+            // Self-closing tags or other tags
+            formatted += "\n" + indent + part;
+        } else {
+            // Content
+            formatted += part.trim();
+        }
+    });
+
+    formatted = formatted.trim();
+
     // Escape HTML special characters
-    const escaped = htmlString
+    let escaped = formatted
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
 
-    // Add syntax highlighting
-    const highlighted = escaped
-      .replace(/(&lt;[\w\d-]+)/g, '<span class="html-tag">$1</span>')
-      .replace(/(&lt;\/[\w\d-]+&gt;)/g, '<span class="html-tag">$1</span>')
-      .replace(
-        /(\s[\w\d-]+)=["'][^"']*["']/g,
-        '<span class="html-attr">$1</span>',
-      );
+    // Syntax highlighting logic
+    escaped = escaped.replace(/(&lt;[a-z0-9-]+)/gi, '<span class="html-tag">$1</span>');
+    escaped = escaped.replace(/(&lt;\/[a-z0-9-]+&gt;)/gi, '<span class="html-tag">$1</span>');
+    escaped = escaped.replace(/(&gt;)/g, (match, p1, offset, string) => {
+        return '<span class="html-tag">' + p1 + '</span>';
+    });
 
-    return highlighted;
+    escaped = escaped.replace(/(\s[a-z0-9-]+)(=&quot;.*?&quot;|=&#039;.*?&#039;)/gi, (match, attrName, attrValue) => {
+        return '<span class="html-attr">' + attrName + '</span>' + attrValue;
+    });
+
+    return escaped;
   } catch (e) {
     console.error("Error formatting HTML for display:", e);
-    return String(html).substring(0, 1000) + "...";
+    return String(html);
   }
 }
 
-// Add these styles
 const elementStyles = document.createElement("style");
 elementStyles.textContent = `
     .html-snippet {
@@ -2532,16 +2577,32 @@ elementStyles.textContent = `
         padding: 12px;
         border-radius: 4px;
         font-family: 'Roboto Mono', monospace;
-        font-size: 12px;
-        white-space: pre-wrap;
-        word-break: break-all;
-        max-height: 200px;
-        overflow-y: auto;
+        font-size: 11px;
+        white-space: pre;
+        word-break: normal;
+        word-wrap: normal;
+        max-height: 250px;
+        overflow: auto;
         border: 1px solid var(--border-color);
         margin-top: 4px;
+        line-height: 1.5;
     }
-    .html-tag { color: #e83e8c; }
-    .html-attr { color: #4CAF50; }
+    .html-tag { 
+        color: #e83e8c; 
+        display: inline !important;
+        background: none !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    .html-attr { 
+        color: #4CAF50; 
+        display: inline !important;
+        background: none !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
 `;
 document.head.appendChild(elementStyles);
 

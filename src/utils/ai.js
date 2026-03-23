@@ -77,12 +77,25 @@
                 this.currentModel = storage.aiModel || this.providers[this.currentProvider].models[0];
                 
                 if (storage.accessibilityRules) {
-                    this.rules = storage.accessibilityRules;
+                    // Filter to only include the role-required rule as per the new approach
+                    this.rules = storage.accessibilityRules.filter(r => r.id === 'role-required');
+                    
+                    // If after filtering we have no rules, or the role-required rule is missing, use defaults
+                    if (this.rules.length === 0) {
+                        this.rules = this.getDefaultRules();
+                        await this.saveRules(this.rules);
+                    }
                 } else {
                     // Set some default rules if none are found
                     this.rules = this.getDefaultRules();
                     await this.saveRules(this.rules);
                 }
+
+                // Auto-set the current rule to 'role-required' if available
+                if (this.rules.length > 0) {
+                    this.currentRule = this.rules[0];
+                }
+
                 return {
                     success: true,
                     rules: this.rules,
@@ -103,37 +116,8 @@
          */
         getDefaultRules() {
             return [{
-                id: 'wcag-1.1.1',
-                name: 'Non-text Content',
-                description: 'All non-text content has a text alternative that serves the equivalent purpose.',
-                details: 'Images must have appropriate alt text. UI controls should have descriptive labels.',
-                criteria: [
-                    'Images have alt attributes',
-                    'Complex images have detailed descriptions',
-                    'Buttons and controls have descriptive text',
-                    'Icon buttons have accessible names'
-                ]
-            }, {
-                id: 'wcag-1.3.1',
-                name: 'Info and Relationships',
-                description: 'Information, structure, and relationships conveyed through presentation can be programmatically determined.',
-                details: 'Use proper semantic HTML. Associate labels with form controls. Use correct heading hierarchy.',
-                criteria: [
-                    'Proper semantic HTML is used',
-                    'Labels are associated with form controls',
-                    'Tables have proper headers',
-                    'Correct heading hierarchy is used'
-                ]
-            }, {
-                id: 'wcag-2.4.7',
-                name: 'Focus Visible',
-                description: 'Any keyboard operable user interface has a mode of operation where the keyboard focus indicator is visible.',
-                details: 'Elements must have a visible focus state. Focus states should be obvious and clear.',
-                criteria: [
-                    'Interactive elements have visible focus states',
-                    'Focus indicators are clearly visible',
-                    'Focus styles contrast sufficiently with the background'
-                ]
+                id: 'role-required',
+                name: 'Role Required'
             }];
         }
 
