@@ -3702,12 +3702,13 @@ async function initializeAIFeatures() {
   // Get default prompt for a rule using the generator functions or empty element data
   const getDefaultPromptTemplate = (rule) => {
     const emptyElementData = {
-      html: "<element>",
-      parentHtml: "<parent>",
-      childHtml: "",
-      accessibility: "Accessibility properties...",
-      cssProperties: "CSS properties...",
-      attributes: "Element attributes...",
+      html: "{html}",
+      parentHtml: "{parentHtml}",
+      childHtml: "{childHtml}",
+      pageSource: "{pageSource}",
+      accessibility: "{accessibility}",
+      cssProperties: "{cssProperties}",
+      attributes: "{attributes}",
     };
 
     if (rule === "role-required" && window.generateRoleRequiredPrompt) {

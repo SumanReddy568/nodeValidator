@@ -465,6 +465,125 @@
     }
 
     /**
+     * Normalize element data before building prompts.
+     */
+    normalizeElementData(elementData = {}) {
+      const normalizeField = (value, fallback = "Not provided") => {
+        if (typeof value !== "string") {
+          return fallback;
+        }
+
+        const trimmedValue = value.trim();
+        if (!trimmedValue || trimmedValue === "-") {
+          return fallback;
+        }
+
+        return trimmedValue;
+      };
+
+      return {
+        html: normalizeField(elementData.html),
+        parentHtml: normalizeField(elementData.parentHtml),
+        childHtml: normalizeField(elementData.childHtml),
+        pageSource: normalizeField(elementData.pageSource),
+        accessibility: normalizeField(elementData.accessibility),
+        cssProperties: normalizeField(elementData.cssProperties),
+        attributes: normalizeField(elementData.attributes),
+      };
+    }
+
+    /**
+     * Build a guaranteed runtime context block for custom prompts.
+     */
+    buildCustomPromptContext(elementData, rule) {
+      return `
+
+# RUNTIME ELEMENT DATA
+---
+Rule ID: ${rule.id}
+Rule Name: ${rule.name}
+
+Target HTML Element:
+\`\`\`html
+${elementData.html}
+\`\`\`
+
+Parent HTML Element:
+\`\`\`html
+${elementData.parentHtml}
+\`\`\`
+
+Child HTML Elements:
+\`\`\`html
+${elementData.childHtml}
+\`\`\`
+
+Full Page Source:
+\`\`\`html
+${elementData.pageSource}
+\`\`\`
+
+Accessibility Properties:
+${elementData.accessibility}
+
+CSS Properties:
+${elementData.cssProperties}
+
+Other Attributes:
+${elementData.attributes}
+
+You must use the runtime element data above for the evaluation and return only a valid JSON object.`;
+    }
+
+    /**
+     * Interpolate supported tokens in saved custom prompts.
+     */
+    buildCustomPrompt(customPrompt, elementData, rule) {
+      const normalizedElementData = this.normalizeElementData(elementData);
+      const tokenValues = {
+        element: JSON.stringify(normalizedElementData, null, 2),
+        rule: rule.id,
+        ruleName: rule.name,
+        html: normalizedElementData.html,
+        parentHtml: normalizedElementData.parentHtml,
+        childHtml: normalizedElementData.childHtml,
+        pageSource: normalizedElementData.pageSource,
+        accessibility: normalizedElementData.accessibility,
+        cssProperties: normalizedElementData.cssProperties,
+        attributes: normalizedElementData.attributes,
+      };
+
+      const hasSupportedTokens = /\{(element|rule|ruleName|html|parentHtml|childHtml|pageSource|accessibility|cssProperties|attributes)\}/.test(
+        customPrompt,
+      );
+      const hasLegacyPreviewPlaceholders =
+        customPrompt.includes("<element>") ||
+        customPrompt.includes("<parent>") ||
+        customPrompt.includes("Accessibility properties...") ||
+        customPrompt.includes("CSS properties...") ||
+        customPrompt.includes("Element attributes...");
+
+      let prompt = customPrompt;
+
+      Object.entries(tokenValues).forEach(([token, value]) => {
+        prompt = prompt.replace(new RegExp(`\\{${token}\\}`, "g"), value);
+      });
+
+      prompt = prompt
+        .replace(/<element>/g, normalizedElementData.html)
+        .replace(/<parent>/g, normalizedElementData.parentHtml)
+        .replace(/Accessibility properties\.\.\./g, normalizedElementData.accessibility)
+        .replace(/CSS properties\.\.\./g, normalizedElementData.cssProperties)
+        .replace(/Element attributes\.\.\./g, normalizedElementData.attributes);
+
+      if (!hasSupportedTokens && !hasLegacyPreviewPlaceholders) {
+        prompt += this.buildCustomPromptContext(normalizedElementData, rule);
+      }
+
+      return prompt;
+    }
+
+    /**
      * Analyze element against selected accessibility rule
      */
     async analyzeElement(elementData, options = {}) {
@@ -489,29 +608,31 @@
         // Check for custom prompt in localStorage first
         const customPromptKey = `aiPrompt_${this.currentRule.id}`;
         const customPrompt = localStorage.getItem(customPromptKey);
+        const normalizedElementData = this.normalizeElementData(elementData);
 
         if (customPrompt) {
-          // Use custom prompt with element data substitution
-          prompt = customPrompt
-            .replace(/\{element\}/g, JSON.stringify(elementData, null, 2))
-            .replace(/\{rule\}/g, this.currentRule.id);
+          prompt = this.buildCustomPrompt(
+            customPrompt,
+            normalizedElementData,
+            this.currentRule,
+          );
         } else if (
           this.currentRule.id === "role-required" &&
           window.generateRoleRequiredPrompt
         ) {
-          prompt = window.generateRoleRequiredPrompt(elementData);
+          prompt = window.generateRoleRequiredPrompt(normalizedElementData);
         } else if (
           this.currentRule.id === "keyboard-interactive" &&
           window.generateKeyboardInteractivePrompt
         ) {
-          prompt = window.generateKeyboardInteractivePrompt(elementData);
+          prompt = window.generateKeyboardInteractivePrompt(normalizedElementData);
         } else if (
           this.currentRule.id === "accessible-name" &&
           window.generateAccessibleNamePrompt
         ) {
-          prompt = window.generateAccessibleNamePrompt(elementData);
+          prompt = window.generateAccessibleNamePrompt(normalizedElementData);
         } else {
-          prompt = this.generatePrompt(elementData, this.currentRule);
+          prompt = this.generatePrompt(normalizedElementData, this.currentRule);
         }
         const imageDataUrls = Array.isArray(options.imageDataUrls)
           ? options.imageDataUrls.filter(Boolean)
