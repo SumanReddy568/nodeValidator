@@ -43,7 +43,11 @@ jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$MANIFEST_PATH" >
 
 # Update version in HTML file if it exists
 if [ -f "$HTML_PATH" ]; then
-  sed -i "s|<span class=\"version\">v[0-9]\+\.[0-9]\+\.[0-9]\+</span>|<span class=\"version\">v$NEW_VERSION</span>|g" "$HTML_PATH"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "s|<span class=\"version\">v[0-9]\+\.[0-9]\+\.[0-9]\+</span>|<span class=\"version\">v$NEW_VERSION</span>|g" "$HTML_PATH"
+  else
+    sed -i "s|<span class=\"version\">v[0-9]\+\.[0-9]\+\.[0-9]\+</span>|<span class=\"version\">v$NEW_VERSION</span>|g" "$HTML_PATH"
+  fi
 fi
 
 # Update changelog
@@ -87,13 +91,13 @@ zip -r -v "$ZIP_FILE" \
     src/panel/panel.js \
     src/utils/csvUtils.js \
     src/utils/ai.js \
+    src/utils/prompts/*.js \
     src/utils/aiUIHandler.js \
     src/devtools/devtools.js \
     public/images/icon16.png \
     public/images/icon48.png \
     public/images/icon128.png \
     public/images/upload.svg \
-    public/images/github.png \
     public/styles/content.css \
     public/styles/panel.css \
     public/styles/popup.css \
@@ -106,13 +110,13 @@ zip -r -v "$ZIP_FILE" \
 
 # Verify the structure
 echo "Verifying extension structure..."
+ZIP_CONTENTS=$(unzip -Z1 "$ZIP_FILE")
 for required_file in \
     "manifest.json" \
     "src/background/background.js" \
     "src/content/content.js" \
     "src/utils/csvUtils.js" \
     "src/utils/ai.js" \
-    "src/utils/prompts/*.js" \
     "src/utils/aiUIHandler.js" \
     "src/devtools/devtools.js" \
     "public/devtools.html" \
@@ -121,11 +125,16 @@ for required_file in \
     "public/styles/panel.css" \
     "public/styles/content.css" \
     "lib/papaparse.min.js"; do
-    if ! unzip -l "$ZIP_FILE" | grep -q "$required_file"; then
+  if ! printf '%s\n' "$ZIP_CONTENTS" | grep -Fxq "$required_file"; then
         echo "Error: Missing required file: $required_file"
         exit 1
     fi
 done
+
+if ! printf '%s\n' "$ZIP_CONTENTS" | grep -Eq '^src/utils/prompts/[^/]+\.js$'; then
+  echo "Error: Missing required file: src/utils/prompts/*.js"
+  exit 1
+fi
 
 # Additional check specifically for AI files
 echo "Verifying AI files..."
