@@ -216,13 +216,11 @@
                                     placeholder="Paste your API key here">
                             </div>
                             <div class="input-group">
-                                <label>Model (Select or Type)</label>
-                                <input list="geminiModels" id="geminiModelSelect" class="premium-input"
-                                    placeholder="e.g. gemini-1.5-flash">
-                                <datalist id="geminiModels">
-                                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                                </datalist>
+                                <label>Model</label>
+                                <select id="geminiModelSelect" class="premium-select">
+                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                </select>
                             </div>
                             <div class="card-actions">
                                 <button id="saveApiKey" class="premium-btn secondary">Save configuration</button>
@@ -249,13 +247,11 @@
                                     placeholder="Cloud API Key">
                             </div>
                             <div class="input-group">
-                                <label>Model (Select or Type)</label>
-                                <input list="vertexModels" id="vertexModelSelect" class="premium-input"
-                                    placeholder="e.g. gemini-1.5-pro">
-                                <datalist id="vertexModels">
-                                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                                </datalist>
+                                <label>Model</label>
+                                <select id="vertexModelSelect" class="premium-select">
+                                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                                </select>
                             </div>
                             <div class="card-actions">
                                 <button id="saveVertexSettings" class="premium-btn secondary">Save Vertex
@@ -273,14 +269,13 @@
                                 <input type="password" id="openaiApiKey" class="premium-input" placeholder="sk-...">
                             </div>
                             <div class="input-group">
-                                <label>Model (Select or Type)</label>
-                                <input list="openaiModels" id="openaiModelSelect" class="premium-input"
-                                    placeholder="e.g. gpt-4o">
-                                <datalist id="openaiModels">
+                                <label>Model</label>
+                                <select id="openaiModelSelect" class="premium-select">
                                     <option value="gpt-4o">gpt-4o</option>
                                     <option value="gpt-4o-mini">gpt-4o-mini</option>
                                     <option value="o1-preview">o1-preview</option>
-                                </datalist>
+                                    <option value="o1-mini">o1-mini</option>
+                                </select>
                             </div>
                             <div class="card-actions">
                                 <button id="saveOpenAISettings" class="premium-btn secondary">Save OpenAI
@@ -615,8 +610,16 @@
                                 </div>
                             </div>
                             <div class="collapsible-content" id="aiAnalysisContent">
+                                <div id="aiAnalysisFeedback" class="ai-analysis-feedback idle" aria-live="polite">
+                                    <div class="ai-analysis-feedback-row">
+                                        <span class="ai-analysis-spinner" aria-hidden="true"></span>
+                                        <span id="aiAnalysisStatusText">AI idle. Enable evaluation to start.</span>
+                                    </div>
+                                    <div id="aiAnalysisTriggerText" class="ai-analysis-trigger">Trigger: waiting</div>
+                                </div>
                                 <p>Check "Evaluate using AI", select a rule, and the AI will analyze the element
                                     automatically.</p>
+                                <div id="aiAnalysisResult"></div>
                             </div>
                         </div>
                     </div>

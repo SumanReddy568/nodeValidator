@@ -9,7 +9,17 @@
     });
 
     window.renderAIAnalysisResult = function (result, container) {
-        if (!result || !result.result) {
+        if (!result) {
+            container.innerHTML = '<p style="color: #d93025;">Analysis failed: No result data received.</p>';
+            return;
+        }
+
+        if (result.success === false) {
+            container.innerHTML = `<p style="color: #d93025;">Analysis failed: ${result.error || 'Unknown error'}</p>`;
+            return;
+        }
+
+        if (!result.result) {
             container.innerHTML = '<p style="color: #d93025;">Analysis failed: No result data received.</p>';
             return;
         }

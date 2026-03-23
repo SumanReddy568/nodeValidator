@@ -302,7 +302,7 @@ function initializePanel() {
           }
 
           // Preview the status change in stats
-          previewStatusChange(buttonId)
+          previewStatusChange(buttonId);
         };
       }
     });
@@ -582,6 +582,257 @@ function initializePanel() {
   // Make showNotification available globally
   window.showNotification = showNotification;
 
+  function updateCurrentElementData(payload = {}) {
+    currentElementData = {
+      html: payload.html || "",
+      parentHtml: payload.parentHtml || "",
+      childHtml: payload.childHtml || "",
+      accessibility: payload.accessibility || "",
+      cssProperties: payload.cssProperties || "",
+      attributes: payload.attributes || "",
+    };
+  }
+
+  function hasCurrentElementData() {
+    return Object.values(currentElementData).some(
+      (value) => typeof value === "string" && value.trim() && value !== "-",
+    );
+  }
+
+  const AI_AUTO_MARK_CONFIDENCE_THRESHOLD = 80;
+
+  function setAIAnalysisFeedback(state, statusText, triggerText = "") {
+    const feedback = document.getElementById("aiAnalysisFeedback");
+    const status = document.getElementById("aiAnalysisStatusText");
+    const trigger = document.getElementById("aiAnalysisTriggerText");
+
+    if (!feedback || !status || !trigger) {
+      return;
+    }
+
+    feedback.classList.remove("idle", "waiting", "loading", "success", "error");
+    feedback.classList.add(state);
+    status.textContent = statusText;
+    trigger.textContent = triggerText ? `Trigger: ${triggerText}` : "Trigger: waiting";
+  }
+
+  function expandAIAnalysisPanel() {
+    const aiPanel = document.getElementById("aiAnalysisPanel");
+    if (aiPanel) {
+      aiPanel.classList.remove("collapsed");
+    }
+  }
+
+  function triggerCurrentElementAIAnalysis(triggerSource = "element update") {
+    const evaluateCheckbox = document.getElementById("evaluateUsingAi");
+
+    if (!evaluateCheckbox) {
+      return;
+    }
+
+    if (!evaluateCheckbox.checked) {
+      setAIAnalysisFeedback(
+        "idle",
+        "AI evaluation is off.",
+        `${triggerSource} skipped because Evaluate using AI is unchecked`,
+      );
+      return;
+    }
+
+    if (!hasCurrentElementData()) {
+      setAIAnalysisFeedback(
+        "waiting",
+        "AI is armed and waiting for element details.",
+        `${triggerSource} received, but no current element data is available`,
+      );
+      return;
+    }
+
+    const ruleId =
+      document.getElementById("accessibilityRuleSelect")?.value ||
+      "role-required";
+
+    if (
+      !window.aiAnalyzer ||
+      typeof window.aiAnalyzer.setCurrentRule !== "function"
+    ) {
+      setAIAnalysisFeedback(
+        "error",
+        "AI analyzer is not available in the panel.",
+        `${triggerSource} could not start`,
+      );
+      return;
+    }
+
+    window.aiAnalyzer.setCurrentRule(ruleId);
+    setAIAnalysisFeedback(
+      "loading",
+      `Running AI analysis for ${ruleId}...`,
+      `${triggerSource}`,
+    );
+    expandAIAnalysisPanel();
+
+    const resultContainer =
+      document.getElementById("aiAnalysisResult") ||
+      (() => {
+        const container = document.createElement("div");
+        container.id = "aiAnalysisResult";
+        const parent = document.getElementById("aiAnalysisContent");
+        if (parent) {
+          parent.appendChild(container);
+        }
+        return container;
+      })();
+
+    if (resultContainer) {
+      resultContainer.innerHTML = `
+        <div class="ai-loading">
+          <p>Analyzing accessibility with AI...</p>
+        </div>
+      `;
+    }
+
+    window.aiAnalyzer
+      .analyzeElement(currentElementData)
+      .then((result) => {
+        if (result?.success === false) {
+          setAIAnalysisFeedback(
+            "error",
+            result.error || "AI analysis failed.",
+            `${triggerSource}`,
+          );
+        } else {
+          setAIAnalysisFeedback(
+            "success",
+            `AI analysis completed for ${ruleId}.`,
+            `${triggerSource}`,
+          );
+        }
+
+        if (window.renderAIAnalysisResult && resultContainer) {
+          window.renderAIAnalysisResult(result, resultContainer);
+        }
+
+        if (result.success && result.result) {
+          const aiData = result.result;
+          const confidence = parseInt(aiData.Confidence, 10) || 0;
+          const status = aiData.status?.toUpperCase() || "UNKNOWN";
+          const summary = aiData.summary || "";
+          const isHighConfidence =
+            confidence >= AI_AUTO_MARK_CONFIDENCE_THRESHOLD;
+
+          let statusStr;
+          let commentStr;
+
+          if (status === "FAIL" && isHighConfidence) {
+            statusStr = "True Positive";
+            commentStr = `[AI Auto] TP. Confidence: ${confidence}%. Reason: ${summary}`;
+            setAIAnalysisFeedback(
+              "success",
+              `AI marked True Positive at ${confidence}% confidence.`,
+              `${triggerSource}`,
+            );
+          } else if (status === "PASS" && isHighConfidence) {
+            statusStr = "False Positive";
+            commentStr = `[AI Auto] FP. Confidence: ${confidence}%. Reason: ${summary}`;
+            setAIAnalysisFeedback(
+              "success",
+              `AI marked False Positive at ${confidence}% confidence.`,
+              `${triggerSource}`,
+            );
+          } else {
+            commentStr = `[AI Review Required] Status: ${status}. Confidence: ${confidence}%. Review the AI result and update the status manually. Reason: ${summary}`;
+            setAIAnalysisFeedback(
+              "waiting",
+              `Manual review required. AI confidence is ${confidence}%.`,
+              `${triggerSource}`,
+            );
+          }
+
+          const notes =
+            document.getElementById("validation-notes") ||
+            document.getElementById("statusNotes");
+          if (notes) {
+            notes.value = commentStr;
+          }
+
+          if (statusStr) {
+            const btnId = Object.keys(statusButtons).find(
+              (key) => statusButtons[key] === statusStr,
+            );
+            if (btnId) {
+              const btn = document.getElementById(btnId);
+              if (btn) {
+                btn.click();
+              }
+            }
+
+            chrome.runtime.sendMessage({
+              action: "UPDATE_STATUS",
+              payload: {
+                index: currentIndex,
+                status: statusStr,
+                comments: commentStr,
+              },
+            });
+          } else {
+            showNotification(
+              `AI confidence is ${confidence}%. Review the AI result and update the status manually.`,
+              "warning",
+              5000,
+            );
+          }
+        }
+      })
+      .catch((err) => {
+        console.error("AI analysis error:", err);
+        setAIAnalysisFeedback(
+          "error",
+          `AI analysis failed: ${err.message}`,
+          `${triggerSource}`,
+        );
+        if (resultContainer) {
+          resultContainer.innerHTML = `<p style="color: #ea4335;">Failed to analyze: ${err.message}</p>`;
+        }
+      });
+  }
+
+  const evaluateUsingAiCheckbox = document.getElementById("evaluateUsingAi");
+  if (evaluateUsingAiCheckbox) {
+    evaluateUsingAiCheckbox.addEventListener("change", function () {
+      if (this.checked) {
+        setAIAnalysisFeedback(
+          hasCurrentElementData() ? "loading" : "waiting",
+          hasCurrentElementData()
+            ? "AI evaluation enabled. Starting analysis..."
+            : "AI evaluation enabled. Waiting for element details.",
+          "checkbox enabled",
+        );
+        triggerCurrentElementAIAnalysis("checkbox enabled");
+      } else {
+        setAIAnalysisFeedback(
+          "idle",
+          "AI evaluation disabled.",
+          "checkbox disabled",
+        );
+      }
+    });
+  }
+
+  const accessibilityRuleSelect = document.getElementById(
+    "accessibilityRuleSelect",
+  );
+  if (accessibilityRuleSelect) {
+    accessibilityRuleSelect.addEventListener("change", function () {
+      setAIAnalysisFeedback(
+        hasCurrentElementData() ? "loading" : "waiting",
+        `Rule changed to ${this.value}.`,
+        "rule selection changed",
+      );
+      triggerCurrentElementAIAnalysis("rule selection changed");
+    });
+  }
+
   // Add debug logging to help diagnose issues
   chrome.runtime.onMessage.addListener(
     function (message, sender, sendResponse) {
@@ -712,98 +963,16 @@ function initializePanel() {
 
           // Update current element data for AI analysis
           updateCurrentElementData(message.payload);
+          setAIAnalysisFeedback(
+            evaluateUsingAiCheckbox?.checked ? "loading" : "waiting",
+            evaluateUsingAiCheckbox?.checked
+              ? "Element details received. Starting AI analysis..."
+              : "Element details received. Enable AI evaluation to analyze.",
+            "element details received",
+          );
 
           // Check if we need to auto-evaluate with AI
-          const evaluateCheckbox = document.getElementById("evaluateUsingAi");
-
-          if (evaluateCheckbox && evaluateCheckbox.checked) {
-            const ruleId =
-              document.getElementById("accessibilityRuleSelect")?.value ||
-              "role-required";
-            if (
-              window.aiAnalyzer &&
-              typeof window.aiAnalyzer.setCurrentRule === "function"
-            ) {
-              window.aiAnalyzer.setCurrentRule(ruleId);
-
-              // Show loading state
-              const resultContainer =
-                document.getElementById("aiAnalysisResult") ||
-                (() => {
-                  const c = document.createElement("div");
-                  c.id = "aiAnalysisResult";
-                  const parent = document.getElementById("aiAnalysisContent");
-                  if (parent) parent.appendChild(c);
-                  return c;
-                })();
-
-              if (resultContainer) {
-                resultContainer.innerHTML = `
-                                <div class="ai-loading">
-                                    <p>Analyzing accessibility with AI...</p>
-                                </div>
-                            `;
-              }
-
-              // Run analysis
-              window.aiAnalyzer
-                .analyzeElement(currentElementData)
-                .then((result) => {
-                  if (window.renderAIAnalysisResult && resultContainer) {
-                    window.renderAIAnalysisResult(result, resultContainer);
-                  }
-
-                  // Auto-mark based on AI result
-                  if (result.success && result.result) {
-                    const aiData = result.result;
-                    const confidence = parseInt(aiData.Confidence, 10) || 0;
-                    const status = aiData.status?.toUpperCase() || "UNKNOWN";
-                    const summary = aiData.summary || "";
-
-                    let statusStr, commentStr;
-                    if (status === "FAIL") {
-                      statusStr = "True Positive";
-                      commentStr = `[AI Auto] TP. Reason: ${summary}`;
-                    } else if (confidence < 80 || status === "PASS") {
-                      statusStr = "Needs Review";
-                      commentStr = `[AI Review] Confidence: ${confidence}%. Reason: ${summary}`;
-                    }
-
-                    if (statusStr) {
-                      const notes =
-                        document.getElementById("validation-notes") ||
-                        document.getElementById("statusNotes");
-                      if (notes) notes.value = commentStr;
-
-                      // Find button
-                      const btnId = Object.keys(statusButtons).find(
-                        (key) => statusButtons[key] === statusStr,
-                      );
-                      if (btnId) {
-                        const btn = document.getElementById(btnId);
-                        if (btn) btn.click();
-                      }
-
-                      // Send to background to save
-                      chrome.runtime.sendMessage({
-                        action: "UPDATE_STATUS",
-                        payload: {
-                          index: currentIndex,
-                          status: statusStr,
-                          comments: commentStr,
-                        },
-                      });
-                    }
-                  }
-                })
-                .catch((err) => {
-                  console.error("AI analysis error:", err);
-                  if (resultContainer) {
-                    resultContainer.innerHTML = `<p style="color: #ea4335;">Failed to analyze: ${err.message}</p>`;
-                  }
-                });
-            }
-          }
+          triggerCurrentElementAIAnalysis("element details received");
         }
         // Handle various message types
         if (message.action === "UPDATE_STATUS_RESULT") {
@@ -2341,8 +2510,11 @@ function initializePanel() {
       aiRuleSelector.style.marginLeft = "20px";
       aiRuleSelector.style.paddingLeft = "20px";
       aiRuleSelector.style.borderLeft = "1px solid var(--gray-300)";
-      
-      modeToggleContainer.parentNode.insertBefore(aiRuleSelector, modeToggleContainer.nextSibling);
+
+      modeToggleContainer.parentNode.insertBefore(
+        aiRuleSelector,
+        modeToggleContainer.nextSibling,
+      );
     }
   }
 
@@ -2551,32 +2723,40 @@ function formatHtmlForDisplay(html) {
     let formatted = "";
     let indent = "";
     const tab = "  "; // 2 spaces
-    
+
     // Split by tags
     const parts = htmlString.split(/(<[^>]*>)/);
-    
-    parts.forEach(part => {
-        if (!part.trim()) return;
-        
-        if (part.startsWith('</')) {
-            // Closing tag
-            indent = indent.substring(tab.length);
-            formatted += "\n" + indent + part;
-        } else if (part.startsWith('<') && !part.endsWith('/>') && !part.startsWith('<!')) {
-            // Opening tag (excluding self-closing and special tags)
-            formatted += "\n" + indent + part;
-            // Only indent if not a self-closing tag or special tag
-            // (A very basic check, but works for common elements)
-            if (!part.match(/<(img|br|hr|input|meta|link|area|base|col|embed|param|source|track|wbr)[^>]*>/i)) {
-                indent += tab;
-            }
-        } else if (part.startsWith('<')) {
-            // Self-closing tags or other tags
-            formatted += "\n" + indent + part;
-        } else {
-            // Content
-            formatted += part.trim();
+
+    parts.forEach((part) => {
+      if (!part.trim()) return;
+
+      if (part.startsWith("</")) {
+        // Closing tag
+        indent = indent.substring(tab.length);
+        formatted += "\n" + indent + part;
+      } else if (
+        part.startsWith("<") &&
+        !part.endsWith("/>") &&
+        !part.startsWith("<!")
+      ) {
+        // Opening tag (excluding self-closing and special tags)
+        formatted += "\n" + indent + part;
+        // Only indent if not a self-closing tag or special tag
+        // (A very basic check, but works for common elements)
+        if (
+          !part.match(
+            /<(img|br|hr|input|meta|link|area|base|col|embed|param|source|track|wbr)[^>]*>/i,
+          )
+        ) {
+          indent += tab;
         }
+      } else if (part.startsWith("<")) {
+        // Self-closing tags or other tags
+        formatted += "\n" + indent + part;
+      } else {
+        // Content
+        formatted += part.trim();
+      }
     });
 
     formatted = formatted.trim();
@@ -2590,15 +2770,24 @@ function formatHtmlForDisplay(html) {
       .replace(/'/g, "&#039;");
 
     // Syntax highlighting logic
-    escaped = escaped.replace(/(&lt;[a-z0-9-]+)/gi, '<span class="html-tag">$1</span>');
-    escaped = escaped.replace(/(&lt;\/[a-z0-9-]+&gt;)/gi, '<span class="html-tag">$1</span>');
+    escaped = escaped.replace(
+      /(&lt;[a-z0-9-]+)/gi,
+      '<span class="html-tag">$1</span>',
+    );
+    escaped = escaped.replace(
+      /(&lt;\/[a-z0-9-]+&gt;)/gi,
+      '<span class="html-tag">$1</span>',
+    );
     escaped = escaped.replace(/(&gt;)/g, (match, p1, offset, string) => {
-        return '<span class="html-tag">' + p1 + '</span>';
+      return '<span class="html-tag">' + p1 + "</span>";
     });
 
-    escaped = escaped.replace(/(\s[a-z0-9-]+)(=&quot;.*?&quot;|=&#039;.*?&#039;)/gi, (match, attrName, attrValue) => {
-        return '<span class="html-attr">' + attrName + '</span>' + attrValue;
-    });
+    escaped = escaped.replace(
+      /(\s[a-z0-9-]+)(=&quot;.*?&quot;|=&#039;.*?&#039;)/gi,
+      (match, attrName, attrValue) => {
+        return '<span class="html-attr">' + attrName + "</span>" + attrValue;
+      },
+    );
 
     return escaped;
   } catch (e) {
@@ -2874,18 +3063,28 @@ async function initializeAIFeatures() {
   const vertexSettings = document.getElementById("vertexSettings");
   const openaiSettings = document.getElementById("openaiSettings");
 
+  function updateProviderSettingsVisibility(selectedProvider) {
+    if (!geminiSettings || !vertexSettings || !openaiSettings) {
+      return;
+    }
+
+    geminiSettings.style.display =
+      selectedProvider === "gemini" ? "block" : "none";
+    vertexSettings.style.display =
+      selectedProvider === "vertex" ? "block" : "none";
+    openaiSettings.style.display =
+      selectedProvider === "openai" ? "block" : "none";
+  }
+
   if (providerSelect && geminiSettings && vertexSettings && openaiSettings) {
     providerSelect.addEventListener("change", function () {
-      const selectedProvider = providerSelect.value;
-      
-      geminiSettings.style.display = selectedProvider === "gemini" ? "block" : "none";
-      vertexSettings.style.display = selectedProvider === "vertex" ? "block" : "none";
-      openaiSettings.style.display = selectedProvider === "openai" ? "block" : "none";
+      updateProviderSettingsVisibility(providerSelect.value);
     });
   }
 
   // Save OpenAI settings
-  const saveOpenAISettingsButton = document.getElementById("saveOpenAISettings");
+  const saveOpenAISettingsButton =
+    document.getElementById("saveOpenAISettings");
   if (saveOpenAISettingsButton) {
     saveOpenAISettingsButton.addEventListener("click", function () {
       const apiKeyInput = document.getElementById("openaiApiKey");
@@ -2896,7 +3095,10 @@ async function initializeAIFeatures() {
           if (result.success) {
             showNotification("OpenAI API key saved successfully", "success");
           } else {
-            showNotification("Failed to save OpenAI API key: " + result.error, "error");
+            showNotification(
+              "Failed to save OpenAI API key: " + result.error,
+              "error",
+            );
           }
         });
       } else {
@@ -2906,7 +3108,9 @@ async function initializeAIFeatures() {
   }
 
   // Save provider settings
-  const saveProviderSettingsButton = document.getElementById("saveProviderSettings");
+  const saveProviderSettingsButton = document.getElementById(
+    "saveProviderSettings",
+  );
   if (saveProviderSettingsButton) {
     saveProviderSettingsButton.addEventListener("click", function () {
       const providerSelect = document.getElementById("aiProviderSelect");
@@ -2922,8 +3126,8 @@ async function initializeAIFeatures() {
       }
 
       if (!selectedModel) {
-          showNotification("Please select or type a model name", "warning");
-          return;
+        showNotification("Please select or type a model name", "warning");
+        return;
       }
 
       window.aiAnalyzer
@@ -2951,6 +3155,7 @@ async function initializeAIFeatures() {
       "vertexProjectId",
       "vertexLocation",
       "vertexApiKey",
+      "vertexServiceAccount",
       "openaiApiKey",
       "aiProvider",
       "aiModel",
@@ -2974,6 +3179,10 @@ async function initializeAIFeatures() {
       if (result.vertexApiKey) {
         const vertexApiKeyInput = document.getElementById("vertexApiKey");
         if (vertexApiKeyInput) vertexApiKeyInput.value = result.vertexApiKey;
+      } else if (result.vertexServiceAccount) {
+        const vertexApiKeyInput = document.getElementById("vertexApiKey");
+        if (vertexApiKeyInput)
+          vertexApiKeyInput.value = result.vertexServiceAccount;
       }
 
       // Load OpenAI settings
@@ -2986,18 +3195,8 @@ async function initializeAIFeatures() {
       if (result.aiProvider) {
         const providerSelect = document.getElementById("aiProviderSelect");
         if (providerSelect) {
-
-          // Update UI visibility
-          const geminiSettings = document.getElementById("geminiSettings");
-          const vertexSettings = document.getElementById("vertexSettings");
-
-          if (result.aiProvider === "gemini") {
-            geminiSettings.style.display = "block";
-            vertexSettings.style.display = "none";
-          } else if (result.aiProvider === "vertex") {
-            geminiSettings.style.display = "none";
-            vertexSettings.style.display = "block";
-          }
+          providerSelect.value = result.aiProvider;
+          updateProviderSettingsVisibility(result.aiProvider);
         }
       }
 

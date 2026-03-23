@@ -23,6 +23,11 @@
                     projectId: null,
                     location: 'us-central1',
                     apiKey: null,
+                    models: ['gemini-2.5-flash', 'gemini-2.5-pro']
+                },
+                openai: {
+                    name: 'OpenAI',
+                    apiKey: null,
                     models: ['gpt-4o', 'gpt-4o-mini', 'o1-preview', 'o1-mini']
                 }
             };
@@ -51,13 +56,14 @@
                     'vertexProjectId',
                     'vertexLocation', 
                     'vertexServiceAccount',
+                    'vertexApiKey',
                     'openaiApiKey',
                     'aiProvider',
                     'aiModel',
                     'accessibilityRules'
                 ]);
                 
-                if (storage.openaiApiKey) {
+                if (storage.openaiApiKey && this.providers.openai) {
                     this.providers.openai.apiKey = storage.openaiApiKey;
                 }
                 
@@ -70,12 +76,12 @@
                 if (storage.vertexLocation) {
                     this.providers.vertex.location = storage.vertexLocation;
                 }
-                if (storage.vertexServiceAccount) {
-                    this.providers.vertex.apiKey = storage.vertexServiceAccount;
+                if (storage.vertexServiceAccount || storage.vertexApiKey) {
+                    this.providers.vertex.apiKey = storage.vertexServiceAccount || storage.vertexApiKey;
                 }
                 
                 // Load current provider and model
-                this.currentProvider = storage.aiProvider || 'gemini';
+                this.currentProvider = this.providers[storage.aiProvider] ? storage.aiProvider : 'gemini';
                 this.currentModel = storage.aiModel || this.providers[this.currentProvider].models[0];
                 
                 if (storage.accessibilityRules) {
@@ -161,7 +167,8 @@
                 await chrome.storage.local.set({
                     vertexProjectId: projectId,
                     vertexLocation: location || 'us-central1',
-                    vertexServiceAccount: serviceAccountKey
+                    vertexServiceAccount: serviceAccountKey,
+                    vertexApiKey: serviceAccountKey
                 });
                 this.providers.vertex.projectId = projectId;
                 this.providers.vertex.location = location || 'us-central1';
@@ -171,6 +178,27 @@
                 };
             } catch (error) {
                 console.error('Error saving Vertex AI settings:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+
+        /**
+         * Save OpenAI settings to storage
+         */
+        async saveOpenAISettings(apiKey) {
+            try {
+                await chrome.storage.local.set({
+                    openaiApiKey: apiKey
+                });
+                this.providers.openai.apiKey = apiKey;
+                return {
+                    success: true
+                };
+            } catch (error) {
+                console.error('Error saving OpenAI settings:', error);
                 return {
                     success: false,
                     error: error.message
@@ -232,6 +260,8 @@
                     return !!prov.apiKey;
                 case 'vertex':
                     return !!(prov.projectId && prov.apiKey);
+                case 'openai':
+                    return !!prov.apiKey;
                 default:
                     return false;
             }
