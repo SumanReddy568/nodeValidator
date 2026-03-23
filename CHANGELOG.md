@@ -1,3 +1,6 @@
+## [1.2.7] - 2026-03-23
+- zip fix
+
 ## [1.2.6] - 2026-03-23
 - add missing file to zip
 
