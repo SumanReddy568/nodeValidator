@@ -241,7 +241,8 @@ function initializePanel() {
   const falsePositivesEl = document.getElementById("falsePositives");
   const falseNegativesEl = document.getElementById("falseNegatives");
   const notValidEl = document.getElementById("notValid");
-  const needsReviewEl = document.getElementById("needsReview"); // Added
+  const notViolationsEl = document.getElementById("notViolations");
+  const needsReviewEl = document.getElementById("needsReview");
   const pendingEl = document.getElementById("pending");
 
   const currentSelector = document.getElementById("currentSelector");
@@ -1065,6 +1066,9 @@ function initializePanel() {
   async function triggerCurrentElementAIAnalysis(
     triggerSource = "element update",
   ) {
+    // Add a small delay for page stability before screenshots
+    await delay(1000);
+
     const evaluateCheckbox = document.getElementById("evaluateUsingAi");
 
     if (!evaluateCheckbox) {
@@ -1252,7 +1256,14 @@ function initializePanel() {
             if (btnId) {
               const btn = document.getElementById(btnId);
               if (btn) {
-                btn.click();
+                // Update visual state and selected status manually since buttons are disabled in automated mode
+                Object.keys(statusButtons).forEach((id) => {
+                  const otherBtn = document.getElementById(id);
+                  if (otherBtn) otherBtn.classList.remove("selected");
+                });
+                btn.classList.add("selected");
+                selectedStatus = statusStr;
+                previewStatusChange(btnId);
               }
             }
 
@@ -1264,6 +1275,13 @@ function initializePanel() {
                 comments: commentStr,
               },
             });
+
+            if (automatedMode) {
+              console.log("Automated mode: Moving to next URL after AI mark...");
+              setTimeout(() => {
+                moveToNextUrl();
+              }, 2000);
+            }
           } else {
             showNotification(
               `AI confidence is ${confidence}%. Review the AI result and update the status manually.`,
@@ -2130,6 +2148,9 @@ function initializePanel() {
 
   // Function to move to the next URL
   function moveToNextUrl() {
+    if (processingNextUrl) return;
+    processingNextUrl = true;
+
     if (nextUrlBtn) {
       nextUrlBtn.disabled = true;
       nextUrlBtn.textContent = "Loading...";
@@ -2188,7 +2209,7 @@ function initializePanel() {
         console.log("Next URL response:", nextResponse);
 
         if (nextUrlBtn) {
-          nextUrlBtn.disabled = false;
+          nextUrlBtn.disabled = automatedMode;
           nextUrlBtn.textContent = "Next URL"; // Reset button text
         }
 
@@ -2240,7 +2261,7 @@ function initializePanel() {
 
     // Re-enable navigation
     if (nextUrlBtn) {
-      nextUrlBtn.disabled = false;
+      nextUrlBtn.disabled = automatedMode;
       nextUrlBtn.textContent = "Next URL";
     }
   }
@@ -2829,9 +2850,11 @@ function initializePanel() {
       falsePositivesEl.textContent = summary.falsePositives.toString();
     if (falseNegativesEl)
       falseNegativesEl.textContent = summary.falseNegatives.toString();
-    if (notValidEl) notValidEl.textContent = summary.notValid.toString();
+    if (notValidEl) notValidEl.textContent = (summary.notValid || 0).toString();
+    if (notViolationsEl)
+      notViolationsEl.textContent = (summary.notViolations || 0).toString(); // Added
     if (needsReviewEl)
-      needsReviewEl.textContent = summary.needsReview.toString(); // Added
+      needsReviewEl.textContent = (summary.needsReview || 0).toString();
     if (pendingEl) pendingEl.textContent = summary.pending.toString();
 
     // Update export button based on results
@@ -2866,9 +2889,11 @@ function initializePanel() {
       falseNegatives: 0,
       notValid: 0,
       needsReview: 0, // Added
+      notViolations: 0, // Added
       pending: 0,
     };
 
+    let skipped = 0;
     data.forEach((row) => {
       if (!row.status || row.status === "Pending") {
         summary.pending++;
@@ -2882,6 +2907,10 @@ function initializePanel() {
         summary.notValid++;
       } else if (row.status === "Needs Review") {
         summary.needsReview++;
+      } else if (row.status === "Not a Violation") {
+        summary.notViolations++;
+      } else if (row.status === "Skipped") {
+        skipped++;
       }
     });
 
@@ -2892,7 +2921,9 @@ function initializePanel() {
       summary.falseNegatives +
       summary.notValid +
       summary.needsReview +
-      summary.pending;
+      summary.notViolations +
+      summary.pending +
+      skipped;
 
     if (verified !== summary.totalNodes) {
       console.warn(
