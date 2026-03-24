@@ -1598,6 +1598,51 @@ function initializePanel() {
 
           console.log("Element status received in panel:", message);
 
+          // In automated mode, skip AI/manual wait when element is missing.
+          if (automatedMode && !message.found) {
+            const autoComment = "[Auto] Element not found on page.";
+
+            if (validationData[currentIndex]) {
+              validationData[currentIndex].status = statusButtons.statusNotValid;
+              validationData[currentIndex].comments = autoComment;
+            }
+
+            selectedStatus = statusButtons.statusNotValid;
+            if (statusNotes) {
+              statusNotes.value = autoComment;
+            }
+
+            const notValidBtn = document.getElementById("statusNotValid");
+            Object.keys(statusButtons).forEach((id) => {
+              const btn = document.getElementById(id);
+              if (btn) btn.classList.remove("selected");
+            });
+            if (notValidBtn) {
+              notValidBtn.classList.add("selected");
+              previewStatusChange("statusNotValid");
+            }
+
+            chrome.runtime.sendMessage({
+              action: "UPDATE_STATUS",
+              payload: {
+                index: currentIndex,
+                status: statusButtons.statusNotValid,
+                comments: autoComment,
+              },
+            });
+
+            setAIAnalysisFeedback(
+              "success",
+              "Element missing; auto-marked as Not Valid.",
+              "element not found in automated mode",
+            );
+
+            setTimeout(() => {
+              moveToNextUrl();
+            }, 700);
+            return;
+          }
+
           // If in manual mode, pre-select the recommended button
           if (!automatedMode) {
             if (!message.found) {
@@ -2106,6 +2151,11 @@ function initializePanel() {
                 btn.classList.remove("selected");
               }
             });
+
+            // Release the submit lock before navigating to the next item.
+            processingNextUrl = false;
+            nextUrlBtn.disabled = automatedMode;
+            nextUrlBtn.textContent = "Next URL";
 
             // Move to next URL
             moveToNextUrl();
@@ -3603,30 +3653,40 @@ async function initializeAIFeatures() {
     saveVertexSettingsButton.addEventListener("click", function () {
       const projectIdInput = document.getElementById("vertexProjectId");
       const locationInput = document.getElementById("vertexLocation");
-      const apiKeyInput = document.getElementById("vertexApiKey");
+      const credentialsInput = document.getElementById("vertexServiceAccount");
 
       const projectId = projectIdInput.value.trim();
       const location = locationInput.value.trim() || "us-central1";
-      const apiKey = apiKeyInput.value.trim();
+      const credentialsJson = credentialsInput.value.trim();
 
-      if (projectId && apiKey) {
-        window.aiAnalyzer
-          .saveVertexSettings(projectId, location, apiKey)
-          .then((result) => {
-            if (result.success) {
-              showNotification(
-                "Vertex AI settings saved successfully",
-                "success",
-              );
-            } else {
-              showNotification(
-                "Failed to save Vertex AI settings: " + result.error,
-                "error",
-              );
-            }
-          });
+      if (credentialsJson) {
+        try {
+          // Try to parse the JSON to validate it
+          const credentials = JSON.parse(credentialsJson);
+          
+          window.aiAnalyzer
+            .saveVertexSettings(projectId, location, credentials)
+            .then((result) => {
+              if (result.success) {
+                showNotification(
+                  "Vertex AI settings saved successfully",
+                  "success",
+                );
+              } else {
+                showNotification(
+                  "Failed to save Vertex AI settings: " + result.error,
+                  "error",
+                );
+              }
+            });
+        } catch (parseError) {
+          showNotification(
+            "Invalid JSON format. Please check your service account credentials.",
+            "error",
+          );
+        }
       } else {
-        showNotification("Please enter both Project ID and API key", "warning");
+        showNotification("Please paste your service account JSON credentials", "warning");
       }
     });
   }
@@ -3728,8 +3788,7 @@ async function initializeAIFeatures() {
       "geminiApiKey",
       "vertexProjectId",
       "vertexLocation",
-      "vertexApiKey",
-      "vertexServiceAccount",
+      "vertexCredentials",
       "openaiApiKey",
       "aiProvider",
       "aiModel",
@@ -3750,13 +3809,11 @@ async function initializeAIFeatures() {
         const locationInput = document.getElementById("vertexLocation");
         if (locationInput) locationInput.value = result.vertexLocation;
       }
-      if (result.vertexApiKey) {
-        const vertexApiKeyInput = document.getElementById("vertexApiKey");
-        if (vertexApiKeyInput) vertexApiKeyInput.value = result.vertexApiKey;
-      } else if (result.vertexServiceAccount) {
-        const vertexApiKeyInput = document.getElementById("vertexApiKey");
-        if (vertexApiKeyInput)
-          vertexApiKeyInput.value = result.vertexServiceAccount;
+      if (result.vertexCredentials) {
+        const credentialsInput = document.getElementById("vertexServiceAccount");
+        if (credentialsInput) {
+          credentialsInput.value = JSON.stringify(JSON.parse(result.vertexCredentials), null, 2);
+        }
       }
 
       // Load OpenAI settings

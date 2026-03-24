@@ -3,6 +3,8 @@
  * * Provides accessibility analysis capabilities using AI (Gemini)
  */
 (function () {
+  const AI_MAX_OUTPUT_TOKENS = 8192;
+
   // Check if AIAnalyzer is already defined
   if (window.AIAnalyzer) {
     console.warn("AIAnalyzer already defined, skipping redefinition");
@@ -22,7 +24,9 @@
           name: "Google Vertex AI",
           projectId: null,
           location: "us-central1",
-          apiKey: null,
+          credentials: null,
+          accessToken: null,
+          tokenExpiry: null,
           models: ["gemini-2.5-flash", "gemini-2.5-pro"],
         },
         openai: {
@@ -56,7 +60,7 @@
           "vertexProjectId",
           "vertexLocation",
           "vertexServiceAccount",
-          "vertexApiKey",
+          "vertexCredentials",
           "openaiApiKey",
           "aiProvider",
           "aiModel",
@@ -76,9 +80,8 @@
         if (storage.vertexLocation) {
           this.providers.vertex.location = storage.vertexLocation;
         }
-        if (storage.vertexServiceAccount || storage.vertexApiKey) {
-          this.providers.vertex.apiKey =
-            storage.vertexServiceAccount || storage.vertexApiKey;
+        if (storage.vertexCredentials) {
+          this.providers.vertex.credentials = JSON.parse(storage.vertexCredentials);
         }
 
         // Load current provider and model
@@ -175,17 +178,33 @@
     /**
      * Save Vertex AI settings to storage
      */
-    async saveVertexSettings(projectId, location, serviceAccountKey) {
+    async saveVertexSettings(projectId, location, serviceAccountJson) {
       try {
+        // Parse service account JSON if it's a string
+        let credentials;
+        if (typeof serviceAccountJson === "string") {
+          credentials = JSON.parse(serviceAccountJson);
+        } else {
+          credentials = serviceAccountJson;
+        }
+
+        // Validate required fields
+        if (!credentials.client_email || !credentials.private_key || !credentials.project_id) {
+          throw new Error(
+            "Invalid service account JSON. Must contain client_email, private_key, and project_id",
+          );
+        }
+
         await chrome.storage.local.set({
-          vertexProjectId: projectId,
+          vertexProjectId: projectId || credentials.project_id,
           vertexLocation: location || "us-central1",
-          vertexServiceAccount: serviceAccountKey,
-          vertexApiKey: serviceAccountKey,
+          vertexCredentials: JSON.stringify(credentials),
         });
-        this.providers.vertex.projectId = projectId;
+
+        this.providers.vertex.projectId = projectId || credentials.project_id;
         this.providers.vertex.location = location || "us-central1";
-        this.providers.vertex.apiKey = serviceAccountKey;
+        this.providers.vertex.credentials = credentials;
+
         return {
           success: true,
         };
@@ -272,7 +291,7 @@
         case "gemini":
           return !!prov.apiKey;
         case "vertex":
-          return !!(prov.projectId && prov.apiKey);
+          return !!(prov.projectId && prov.credentials);
         case "openai":
           return !!prov.apiKey;
         default:
@@ -448,17 +467,20 @@
 
                 # RESPONSE FORMAT
                 ---
-                The entire response MUST be a single, valid JSON object and nothing else. Do not include any pre-text, post-text, markdown, or code block delimiters outside of the JSON. The JSON keys and values must be exactly as specified below.
-                IMPORTANT: Include a "Confidence" field (number between 0 and 100) representing your confidence in the PASS/FAIL decision.
-                \`\`\`json
+                CRITICAL: The entire response MUST be a single, valid JSON object and NOTHING ELSE.
+                - DO NOT include markdown code blocks (e.g., do NOT use backticks like \`\`\`json).
+                - DO NOT include any introductory or concluding text.
+                - Start your response directly with '{' and end it with '}'.
+                - Ensure all property names and string values are enclosed in double quotes.
+                - The "Confidence" field must be a raw number (0-100), not a string.
+
                 {
-                "status": "PASS" or "FAIL",
-                "Confidence": "number (0-100)"
-                "summary": "string",
-                "details": "string",
-                "suggestions": "string"
+                  "status": "PASS" | "FAIL",
+                  "Confidence": number,
+                  "summary": "string",
+                  "details": "string",
+                  "suggestions": "string"
                 }
-                \`\`\`
                 `;
       // console.log('Generated prompt:', promptText);
       return promptText;
@@ -553,9 +575,10 @@ You must use the runtime element data above for the evaluation and return only a
         attributes: normalizedElementData.attributes,
       };
 
-      const hasSupportedTokens = /\{(element|rule|ruleName|html|parentHtml|childHtml|pageSource|accessibility|cssProperties|attributes)\}/.test(
-        customPrompt,
-      );
+      const hasSupportedTokens =
+        /\{(element|rule|ruleName|html|parentHtml|childHtml|pageSource|accessibility|cssProperties|attributes)\}/.test(
+          customPrompt,
+        );
       const hasLegacyPreviewPlaceholders =
         customPrompt.includes("<element>") ||
         customPrompt.includes("<parent>") ||
@@ -572,7 +595,10 @@ You must use the runtime element data above for the evaluation and return only a
       prompt = prompt
         .replace(/<element>/g, normalizedElementData.html)
         .replace(/<parent>/g, normalizedElementData.parentHtml)
-        .replace(/Accessibility properties\.\.\./g, normalizedElementData.accessibility)
+        .replace(
+          /Accessibility properties\.\.\./g,
+          normalizedElementData.accessibility,
+        )
         .replace(/CSS properties\.\.\./g, normalizedElementData.cssProperties)
         .replace(/Element attributes\.\.\./g, normalizedElementData.attributes);
 
@@ -581,6 +607,117 @@ You must use the runtime element data above for the evaluation and return only a
       }
 
       return prompt;
+    }
+
+    /**
+     * Safely extract a quoted JSON string value from a raw response.
+     */
+    extractQuotedField(rawText, key) {
+      const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const quotedMatch = rawText.match(
+        new RegExp(`"${escapedKey}"\\s*:\\s*"([\\s\\S]*?)"(?=\\s*,\\s*"|\\s*}\\s*$)`, "i"),
+      );
+
+      if (quotedMatch) {
+        try {
+          return JSON.parse(`"${quotedMatch[1]}"`);
+        } catch (_error) {
+          return quotedMatch[1].replace(/\\"/g, '"').replace(/\\n/g, "\n");
+        }
+      }
+
+      const partialMatch = rawText.match(
+        new RegExp(`"${escapedKey}"\\s*:\\s*"([\\s\\S]*)$`, "i"),
+      );
+      if (partialMatch) {
+        return partialMatch[1].replace(/\\"/g, '"').replace(/\\n/g, "\n");
+      }
+
+      return "";
+    }
+
+    /**
+     * Build a normalized result object from parsed AI output.
+     */
+    normalizeAIResult(result = {}) {
+      const normalizedStatus = String(
+        result.status || result.Status || "ERROR",
+      ).toUpperCase();
+      const confidenceRaw =
+        result.Confidence ?? result.confidence ?? result.CONFIDENCE ?? 0;
+      const confidence = Number(confidenceRaw);
+
+      return {
+        status: normalizedStatus === "PASS" || normalizedStatus === "FAIL" ? normalizedStatus : "ERROR",
+        Confidence: Number.isFinite(confidence)
+          ? Math.max(0, Math.min(100, Math.round(confidence)))
+          : 0,
+        summary: typeof result.summary === "string" ? result.summary : "",
+        details: typeof result.details === "string" ? result.details : "",
+        suggestions:
+          typeof result.suggestions === "string" ? result.suggestions : "",
+      };
+    }
+
+    /**
+     * Parse model output with a best-effort fallback for truncated JSON.
+     */
+    parseAIResponse(rawResponse, finishReason = "") {
+      const responseText = typeof rawResponse === "string" ? rawResponse : "";
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+
+      if (jsonMatch) {
+        let jsonString = jsonMatch[0];
+
+        try {
+          return this.normalizeAIResult(JSON.parse(jsonString));
+        } catch (_error) {
+          jsonString = jsonString.replace(/,(\s*[}\]])/g, "$1");
+          try {
+            return this.normalizeAIResult(JSON.parse(jsonString));
+          } catch (_error2) {
+            // Continue into best-effort field extraction below.
+          }
+        }
+      }
+
+      const statusMatch = responseText.match(/"status"\s*:\s*"(PASS|FAIL|ERROR)"/i);
+      const confidenceMatch = responseText.match(
+        /"(Confidence|confidence)"\s*:\s*(-?\d+(?:\.\d+)?)/,
+      );
+
+      const recovered = {
+        status: statusMatch ? statusMatch[1].toUpperCase() : "ERROR",
+        Confidence: confidenceMatch ? Number(confidenceMatch[2]) : 0,
+        summary: this.extractQuotedField(responseText, "summary"),
+        details: this.extractQuotedField(responseText, "details"),
+        suggestions: this.extractQuotedField(responseText, "suggestions"),
+      };
+
+      const hasUsefulContent =
+        recovered.status !== "ERROR" ||
+        recovered.summary ||
+        recovered.details ||
+        recovered.suggestions;
+
+      if (hasUsefulContent) {
+        const normalizedRecovered = this.normalizeAIResult(recovered);
+        if (finishReason === "MAX_TOKENS") {
+          normalizedRecovered.details = `${
+            normalizedRecovered.details || "Model output was truncated."
+          }\n\nNote: The model response was cut off by token limit (finishReason: MAX_TOKENS).`;
+        }
+        return normalizedRecovered;
+      }
+
+      return {
+        status: "ERROR",
+        Confidence: 0,
+        summary: "Unexpected AI response format",
+        details: `The AI did not return a properly formatted JSON response.
+Raw Response: ${responseText}`,
+        suggestions: `Raw Response: ${responseText}`,
+      };
     }
 
     /**
@@ -625,7 +762,9 @@ You must use the runtime element data above for the evaluation and return only a
           this.currentRule.id === "keyboard-interactive" &&
           window.generateKeyboardInteractivePrompt
         ) {
-          prompt = window.generateKeyboardInteractivePrompt(normalizedElementData);
+          prompt = window.generateKeyboardInteractivePrompt(
+            normalizedElementData,
+          );
         } else if (
           this.currentRule.id === "accessible-name" &&
           window.generateAccessibleNamePrompt
@@ -656,60 +795,22 @@ You must use the runtime element data above for the evaluation and return only a
           throw new Error(`Unsupported provider: ${this.currentProvider}`);
         }
 
-        const { rawResponse, responseTime, tokenCount } = apiResponse;
+        const { rawResponse, responseTime, tokenCount, finishReason } =
+          apiResponse;
 
         this.isAnalyzing = false;
         console.log(
           `${this.providers[this.currentProvider].name} API response received`,
         );
         // console.log('Gemini raw response:', rawResponse);
-        let result;
-        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          let jsonString = jsonMatch[0];
-          // console.log('Extracted JSON string:', jsonString);
-
-          try {
-            result = JSON.parse(jsonString);
-            console.log("Successfully parsed JSON:", result);
-          } catch (e) {
-            console.warn("Direct JSON parse failed. Attempting to repair.", e);
-            jsonString = jsonString.replace(/,(\s*[}\]])/g, "$1");
-
-            try {
-              result = JSON.parse(jsonString);
-              console.log("Successfully repaired and parsed JSON:", result);
-            } catch (e2) {
-              console.error(
-                "Failed to parse AI response JSON even after repair:",
-                e2,
-              );
-              result = {
-                status: "ERROR",
-                summary: "Failed to parse AI response",
-                details: `The AI returned a response that could not be parsed as valid JSON.
-                                            Raw Response: ${rawResponse}`,
-                // Return the raw response for debugging
-                suggestions: `Raw Response: ${rawResponse}`,
-              };
-            }
-          }
-        } else {
-          console.error("No JSON object found in AI response.");
-          result = {
-            status: "ERROR",
-            summary: "Unexpected AI response format",
-            details: `The AI did not return a properly formatted JSON response.
-                                    Raw Response: ${rawResponse}`,
-            suggestions: `Raw Response: ${rawResponse}`,
-          };
-        }
+        const result = this.parseAIResponse(rawResponse, finishReason);
 
         // Append metadata to the result object
         result.metadata = {
           responseTime: responseTime,
           inputTokens: tokenCount.input,
           outputTokens: tokenCount.output,
+          finishReason: finishReason || "UNKNOWN",
         };
 
         return {
@@ -786,9 +887,10 @@ You must use the runtime element data above for the evaluation and return only a
           ],
           generationConfig: {
             temperature: 0.2,
-            maxOutputTokens: 2048,
+            maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
             topP: 0.8,
             topK: 40,
+            responseMimeType: "application/json",
           },
         };
 
@@ -835,6 +937,7 @@ You must use the runtime element data above for the evaluation and return only a
           rawResponse: data.candidates[0].content.parts[0].text,
           responseTime: responseTime,
           tokenCount: tokenCount,
+          finishReason: data.candidates[0].finishReason || "",
         };
       } catch (error) {
         console.error("Gemini API call failed:", error);
@@ -843,23 +946,145 @@ You must use the runtime element data above for the evaluation and return only a
     }
 
     /**
+     * Get OAuth2 access token from service account credentials
+     */
+    async getVertexAccessToken() {
+      try {
+        if (!this.providers.vertex.credentials) {
+          throw new Error("Service account credentials not configured");
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+        const expiry = now + 3600; // 1 hour
+
+        const payload = {
+          iss: this.providers.vertex.credentials.client_email,
+          scope: "https://www.googleapis.com/auth/cloud-platform",
+          aud: "https://oauth2.googleapis.com/token",
+          exp: expiry,
+          iat: now,
+        };
+
+        // Create JWT header
+        const header = {
+          alg: "RS256",
+          typ: "JWT",
+        };
+
+        // Encode to base64url
+        const encodeBase64Url = (str) => {
+          return btoa(str)
+            .replace(/\+/g, "-")
+            .replace(/\//g, "_")
+            .replace(/=+$/, "");
+        };
+
+        const headerEncoded = encodeBase64Url(JSON.stringify(header));
+        const payloadEncoded = encodeBase64Url(JSON.stringify(payload));
+        const signatureInput = `${headerEncoded}.${payloadEncoded}`;
+
+        // Sign JWT using service account private key
+        const privateKey = this.providers.vertex.credentials.private_key;
+        const keyData = this.pemToArrayBuffer(privateKey);
+
+        const key = await crypto.subtle.importKey(
+          "pkcs8",
+          keyData,
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            hash: "SHA-256",
+          },
+          false,
+          ["sign"],
+        );
+
+        const signatureBytes = await crypto.subtle.sign(
+          "RSASSA-PKCS1-v1_5",
+          key,
+          new TextEncoder().encode(signatureInput),
+        );
+
+        const signatureEncoded = encodeBase64Url(
+          String.fromCharCode(...new Uint8Array(signatureBytes)),
+        );
+        const jwt = `${signatureInput}.${signatureEncoded}`;
+
+        // Exchange JWT for access token
+        const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            assertion: jwt,
+          }).toString(),
+        });
+
+        if (!tokenResponse.ok) {
+          throw new Error(
+            `Failed to get access token: ${await tokenResponse.text()}`,
+          );
+        }
+
+        const tokenData = await tokenResponse.json();
+        this.providers.vertex.accessToken = tokenData.access_token;
+        this.providers.vertex.tokenExpiry = now + tokenData.expires_in;
+
+        return tokenData.access_token;
+      } catch (error) {
+        console.error("Error getting Vertex access token:", error);
+        throw error;
+      }
+    }
+
+    /**
+     * Convert PEM formatted private key to ArrayBuffer for WebCrypto
+     */
+    pemToArrayBuffer(pem) {
+      const b64 = pem
+        .replace(/-----BEGIN PRIVATE KEY-----/, "")
+        .replace(/-----END PRIVATE KEY-----/, "")
+        .replace(/\n/g, "");
+
+      const binaryString = atob(b64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
+    /**
      * Call Vertex AI API
      */
     async callVertexAPI(prompt, imageDataUrls = []) {
       try {
         const startTime = performance.now();
+
+        // Get access token
+        let accessToken = this.providers.vertex.accessToken;
+        const now = Math.floor(Date.now() / 1000);
+
+        // Check if token is expired or doesn't exist
+        if (!accessToken || !this.providers.vertex.tokenExpiry || this.providers.vertex.tokenExpiry <= now) {
+          accessToken = await this.getVertexAccessToken();
+        }
+
         const apiUrl = `https://${this.providers.vertex.location}-aiplatform.googleapis.com/v1/projects/${this.providers.vertex.projectId}/locations/${this.providers.vertex.location}/publishers/google/models/${this.currentModel}:generateContent`;
         const requestBody = {
           contents: [
             {
+              role: "user",
               parts: this.buildContentParts(prompt, imageDataUrls),
             },
           ],
           generationConfig: {
             temperature: 0.2,
-            maxOutputTokens: 2048,
+            maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
             topP: 0.8,
             topK: 40,
+            responseMimeType: "application/json",
           },
         };
 
@@ -867,7 +1092,7 @@ You must use the runtime element data above for the evaluation and return only a
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-goog-api-key": this.providers.vertex.apiKey,
+            "Authorization": `Bearer ${accessToken}`,
           },
           body: JSON.stringify(requestBody),
         });
@@ -903,6 +1128,7 @@ You must use the runtime element data above for the evaluation and return only a
           rawResponse: data.candidates[0].content.parts[0].text,
           responseTime: responseTime,
           tokenCount: tokenCount,
+          finishReason: data.candidates[0].finishReason || "",
         };
       } catch (error) {
         console.error("Vertex AI API call failed:", error);
@@ -943,7 +1169,7 @@ You must use the runtime element data above for the evaluation and return only a
             },
           ],
           temperature: 0.2,
-          max_tokens: 2048,
+          max_tokens: AI_MAX_OUTPUT_TOKENS,
         };
 
         const response = await fetch(apiUrl, {
@@ -986,6 +1212,7 @@ You must use the runtime element data above for the evaluation and return only a
           rawResponse: data.choices[0].message.content,
           responseTime: responseTime,
           tokenCount: tokenCount,
+          finishReason: data.choices[0].finish_reason || "",
         };
       } catch (error) {
         console.error("OpenAI API call failed:", error);
