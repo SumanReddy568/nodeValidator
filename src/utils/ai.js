@@ -22,7 +22,9 @@
           name: "Google Vertex AI",
           projectId: null,
           location: "us-central1",
-          apiKey: null,
+          credentials: null,
+          accessToken: null,
+          tokenExpiry: null,
           models: ["gemini-2.5-flash", "gemini-2.5-pro"],
         },
         openai: {
@@ -56,7 +58,7 @@
           "vertexProjectId",
           "vertexLocation",
           "vertexServiceAccount",
-          "vertexApiKey",
+          "vertexCredentials",
           "openaiApiKey",
           "aiProvider",
           "aiModel",
@@ -76,9 +78,8 @@
         if (storage.vertexLocation) {
           this.providers.vertex.location = storage.vertexLocation;
         }
-        if (storage.vertexServiceAccount || storage.vertexApiKey) {
-          this.providers.vertex.apiKey =
-            storage.vertexServiceAccount || storage.vertexApiKey;
+        if (storage.vertexCredentials) {
+          this.providers.vertex.credentials = JSON.parse(storage.vertexCredentials);
         }
 
         // Load current provider and model
@@ -175,17 +176,33 @@
     /**
      * Save Vertex AI settings to storage
      */
-    async saveVertexSettings(projectId, location, serviceAccountKey) {
+    async saveVertexSettings(projectId, location, serviceAccountJson) {
       try {
+        // Parse service account JSON if it's a string
+        let credentials;
+        if (typeof serviceAccountJson === "string") {
+          credentials = JSON.parse(serviceAccountJson);
+        } else {
+          credentials = serviceAccountJson;
+        }
+
+        // Validate required fields
+        if (!credentials.client_email || !credentials.private_key || !credentials.project_id) {
+          throw new Error(
+            "Invalid service account JSON. Must contain client_email, private_key, and project_id",
+          );
+        }
+
         await chrome.storage.local.set({
-          vertexProjectId: projectId,
+          vertexProjectId: projectId || credentials.project_id,
           vertexLocation: location || "us-central1",
-          vertexServiceAccount: serviceAccountKey,
-          vertexApiKey: serviceAccountKey,
+          vertexCredentials: JSON.stringify(credentials),
         });
-        this.providers.vertex.projectId = projectId;
+
+        this.providers.vertex.projectId = projectId || credentials.project_id;
         this.providers.vertex.location = location || "us-central1";
-        this.providers.vertex.apiKey = serviceAccountKey;
+        this.providers.vertex.credentials = credentials;
+
         return {
           success: true,
         };
@@ -272,7 +289,7 @@
         case "gemini":
           return !!prov.apiKey;
         case "vertex":
-          return !!(prov.projectId && prov.apiKey);
+          return !!(prov.projectId && prov.credentials);
         case "openai":
           return !!prov.apiKey;
         default:
@@ -553,9 +570,10 @@ You must use the runtime element data above for the evaluation and return only a
         attributes: normalizedElementData.attributes,
       };
 
-      const hasSupportedTokens = /\{(element|rule|ruleName|html|parentHtml|childHtml|pageSource|accessibility|cssProperties|attributes)\}/.test(
-        customPrompt,
-      );
+      const hasSupportedTokens =
+        /\{(element|rule|ruleName|html|parentHtml|childHtml|pageSource|accessibility|cssProperties|attributes)\}/.test(
+          customPrompt,
+        );
       const hasLegacyPreviewPlaceholders =
         customPrompt.includes("<element>") ||
         customPrompt.includes("<parent>") ||
@@ -572,7 +590,10 @@ You must use the runtime element data above for the evaluation and return only a
       prompt = prompt
         .replace(/<element>/g, normalizedElementData.html)
         .replace(/<parent>/g, normalizedElementData.parentHtml)
-        .replace(/Accessibility properties\.\.\./g, normalizedElementData.accessibility)
+        .replace(
+          /Accessibility properties\.\.\./g,
+          normalizedElementData.accessibility,
+        )
         .replace(/CSS properties\.\.\./g, normalizedElementData.cssProperties)
         .replace(/Element attributes\.\.\./g, normalizedElementData.attributes);
 
@@ -625,7 +646,9 @@ You must use the runtime element data above for the evaluation and return only a
           this.currentRule.id === "keyboard-interactive" &&
           window.generateKeyboardInteractivePrompt
         ) {
-          prompt = window.generateKeyboardInteractivePrompt(normalizedElementData);
+          prompt = window.generateKeyboardInteractivePrompt(
+            normalizedElementData,
+          );
         } else if (
           this.currentRule.id === "accessible-name" &&
           window.generateAccessibleNamePrompt
@@ -843,15 +866,136 @@ You must use the runtime element data above for the evaluation and return only a
     }
 
     /**
+     * Get OAuth2 access token from service account credentials
+     */
+    async getVertexAccessToken() {
+      try {
+        if (!this.providers.vertex.credentials) {
+          throw new Error("Service account credentials not configured");
+        }
+
+        const now = Math.floor(Date.now() / 1000);
+        const expiry = now + 3600; // 1 hour
+
+        const payload = {
+          iss: this.providers.vertex.credentials.client_email,
+          scope: "https://www.googleapis.com/auth/cloud-platform",
+          aud: "https://oauth2.googleapis.com/token",
+          exp: expiry,
+          iat: now,
+        };
+
+        // Create JWT header
+        const header = {
+          alg: "RS256",
+          typ: "JWT",
+        };
+
+        // Encode to base64url
+        const encodeBase64Url = (str) => {
+          return btoa(str)
+            .replace(/\+/g, "-")
+            .replace(/\//g, "_")
+            .replace(/=+$/, "");
+        };
+
+        const headerEncoded = encodeBase64Url(JSON.stringify(header));
+        const payloadEncoded = encodeBase64Url(JSON.stringify(payload));
+        const signatureInput = `${headerEncoded}.${payloadEncoded}`;
+
+        // Sign JWT using service account private key
+        const privateKey = this.providers.vertex.credentials.private_key;
+        const keyData = this.pemToArrayBuffer(privateKey);
+
+        const key = await crypto.subtle.importKey(
+          "pkcs8",
+          keyData,
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            hash: "SHA-256",
+          },
+          false,
+          ["sign"],
+        );
+
+        const signatureBytes = await crypto.subtle.sign(
+          "RSASSA-PKCS1-v1_5",
+          key,
+          new TextEncoder().encode(signatureInput),
+        );
+
+        const signatureEncoded = encodeBase64Url(
+          String.fromCharCode(...new Uint8Array(signatureBytes)),
+        );
+        const jwt = `${signatureInput}.${signatureEncoded}`;
+
+        // Exchange JWT for access token
+        const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            assertion: jwt,
+          }).toString(),
+        });
+
+        if (!tokenResponse.ok) {
+          throw new Error(
+            `Failed to get access token: ${await tokenResponse.text()}`,
+          );
+        }
+
+        const tokenData = await tokenResponse.json();
+        this.providers.vertex.accessToken = tokenData.access_token;
+        this.providers.vertex.tokenExpiry = now + tokenData.expires_in;
+
+        return tokenData.access_token;
+      } catch (error) {
+        console.error("Error getting Vertex access token:", error);
+        throw error;
+      }
+    }
+
+    /**
+     * Convert PEM formatted private key to ArrayBuffer for WebCrypto
+     */
+    pemToArrayBuffer(pem) {
+      const b64 = pem
+        .replace(/-----BEGIN PRIVATE KEY-----/, "")
+        .replace(/-----END PRIVATE KEY-----/, "")
+        .replace(/\n/g, "");
+
+      const binaryString = atob(b64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
+    /**
      * Call Vertex AI API
      */
     async callVertexAPI(prompt, imageDataUrls = []) {
       try {
         const startTime = performance.now();
+
+        // Get access token
+        let accessToken = this.providers.vertex.accessToken;
+        const now = Math.floor(Date.now() / 1000);
+
+        // Check if token is expired or doesn't exist
+        if (!accessToken || !this.providers.vertex.tokenExpiry || this.providers.vertex.tokenExpiry <= now) {
+          accessToken = await this.getVertexAccessToken();
+        }
+
         const apiUrl = `https://${this.providers.vertex.location}-aiplatform.googleapis.com/v1/projects/${this.providers.vertex.projectId}/locations/${this.providers.vertex.location}/publishers/google/models/${this.currentModel}:generateContent`;
         const requestBody = {
           contents: [
             {
+              role: "user",
               parts: this.buildContentParts(prompt, imageDataUrls),
             },
           ],
@@ -867,7 +1011,7 @@ You must use the runtime element data above for the evaluation and return only a
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-goog-api-key": this.providers.vertex.apiKey,
+            "Authorization": `Bearer ${accessToken}`,
           },
           body: JSON.stringify(requestBody),
         });

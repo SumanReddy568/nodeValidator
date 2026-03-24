@@ -3572,30 +3572,40 @@ async function initializeAIFeatures() {
     saveVertexSettingsButton.addEventListener("click", function () {
       const projectIdInput = document.getElementById("vertexProjectId");
       const locationInput = document.getElementById("vertexLocation");
-      const apiKeyInput = document.getElementById("vertexApiKey");
+      const credentialsInput = document.getElementById("vertexServiceAccount");
 
       const projectId = projectIdInput.value.trim();
       const location = locationInput.value.trim() || "us-central1";
-      const apiKey = apiKeyInput.value.trim();
+      const credentialsJson = credentialsInput.value.trim();
 
-      if (projectId && apiKey) {
-        window.aiAnalyzer
-          .saveVertexSettings(projectId, location, apiKey)
-          .then((result) => {
-            if (result.success) {
-              showNotification(
-                "Vertex AI settings saved successfully",
-                "success",
-              );
-            } else {
-              showNotification(
-                "Failed to save Vertex AI settings: " + result.error,
-                "error",
-              );
-            }
-          });
+      if (credentialsJson) {
+        try {
+          // Try to parse the JSON to validate it
+          const credentials = JSON.parse(credentialsJson);
+          
+          window.aiAnalyzer
+            .saveVertexSettings(projectId, location, credentials)
+            .then((result) => {
+              if (result.success) {
+                showNotification(
+                  "Vertex AI settings saved successfully",
+                  "success",
+                );
+              } else {
+                showNotification(
+                  "Failed to save Vertex AI settings: " + result.error,
+                  "error",
+                );
+              }
+            });
+        } catch (parseError) {
+          showNotification(
+            "Invalid JSON format. Please check your service account credentials.",
+            "error",
+          );
+        }
       } else {
-        showNotification("Please enter both Project ID and API key", "warning");
+        showNotification("Please paste your service account JSON credentials", "warning");
       }
     });
   }
@@ -3697,8 +3707,7 @@ async function initializeAIFeatures() {
       "geminiApiKey",
       "vertexProjectId",
       "vertexLocation",
-      "vertexApiKey",
-      "vertexServiceAccount",
+      "vertexCredentials",
       "openaiApiKey",
       "aiProvider",
       "aiModel",
@@ -3719,13 +3728,11 @@ async function initializeAIFeatures() {
         const locationInput = document.getElementById("vertexLocation");
         if (locationInput) locationInput.value = result.vertexLocation;
       }
-      if (result.vertexApiKey) {
-        const vertexApiKeyInput = document.getElementById("vertexApiKey");
-        if (vertexApiKeyInput) vertexApiKeyInput.value = result.vertexApiKey;
-      } else if (result.vertexServiceAccount) {
-        const vertexApiKeyInput = document.getElementById("vertexApiKey");
-        if (vertexApiKeyInput)
-          vertexApiKeyInput.value = result.vertexServiceAccount;
+      if (result.vertexCredentials) {
+        const credentialsInput = document.getElementById("vertexServiceAccount");
+        if (credentialsInput) {
+          credentialsInput.value = JSON.stringify(JSON.parse(result.vertexCredentials), null, 2);
+        }
       }
 
       // Load OpenAI settings

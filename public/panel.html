@@ -233,18 +233,22 @@
                         <div class="config-card accent-vertex">
                             <h4 class="card-title">Vertex AI Settings</h4>
                             <div class="input-group">
-                                <label>Project ID</label>
+                                <label>Project ID (Optional)</label>
                                 <input type="text" id="vertexProjectId" class="premium-input"
-                                    placeholder="GCP Project ID">
+                                    placeholder="GCP Project ID (auto-detected from credentials if not provided)">
                             </div>
                             <div class="input-group">
                                 <label>Location</label>
                                 <input type="text" id="vertexLocation" class="premium-input" value="us-central1">
                             </div>
                             <div class="input-group">
-                                <label>API Key</label>
-                                <input type="password" id="vertexApiKey" class="premium-input"
-                                    placeholder="Cloud API Key">
+                                <label>Service Account JSON</label>
+                                <textarea id="vertexServiceAccount" class="premium-input" 
+                                    placeholder="Paste your Google Cloud service account JSON credentials here"
+                                    style="min-height: 150px; font-family: monospace; font-size: 0.85em;"></textarea>
+                                <p style="color: #999; font-size: 0.85em; margin-top: 8px;">
+                                    Get this from Google Cloud Console → Service Accounts → Select account → Keys → Add Key → Create new key (JSON format)
+                                </p>
                             </div>
                             <div class="input-group">
                                 <label>Model</label>
