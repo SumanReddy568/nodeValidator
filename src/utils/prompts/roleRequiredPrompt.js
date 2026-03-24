@@ -30,38 +30,24 @@ ${elementData.attributes}
 Your analysis must be methodical and precise.
 Strict visual rule: Ignore any pink/magenta highlighted border or outline shown in screenshots/base images. That border is only for targeting the element and must NOT be treated as part of the UI, style, contrast, spacing, or accessibility behavior.
 
-1. **Determine Necessity:** Identify if the Target HTML Element requires a specific ARIA role or native semantic equivalent:
-   - PRECEDENCE RULE: Do NOT auto-pass based only on "non-interactive". First determine whether the element is exposed with meaningful semantics or interactive intent (native control semantics, interactive behavior, landmark/graphic intent, or ARIA semantics that imply purpose).
-   - Interactive elements (buttons, links, inputs, form controls) REQUIRE appropriate semantic roles (native or ARIA).
-   - Hidden elements should be treated as NON-interactive for this rule unless there is strong evidence they are intentionally exposed to assistive tech.
-   - For custom elements, require an interactive role ONLY when there is strong interactivity evidence such as:
-     native activation behavior, keyboard focusability with intended interaction, or explicit click/keyboard event handling.
-   - A single onclick handler alone is NOT sufficient to classify an element as interactive for this rule.
-   - If onclick is present, confirm interactivity using screenshots plus at least one additional strong signal (for example: interactive role, keyboard support, focusability in context, or visible control-like UI intent).
-   - Do NOT treat visual styling or metadata alone as interactivity evidence (for example: cursor: pointer, CSS classes, data-* attributes such as data-href).
+ARIA roles define what an element is or does for assistive technologies. Every interactive or semantically meaningful element must have the correct role — either through native HTML semantics (e.g., using a <button> element) or an explicit ARIA role attribute — so that assistive technology users understand the element's purpose and can interact with it appropriately.
 
-2. **Check Role Implementation:**
-   - Does it have the required ARIA role or native HTML equivalent?
-   - Look at its accessibility properties: verify the role matches the element's actual usage.
-   - Verify that interactive roles like 'button' or 'link' are focusable (have valid tab index).
+1. **Check if Element Requires a Role:**
+   - First, determine if the target element requires a specific semantic role. Elements that require a role include: interactive elements (buttons, links, inputs, form controls), landmark regions, and custom widgets that behave as interactive controls.
+   - If the element is hidden (display: none, visibility: hidden, aria-hidden="true", or not visible in screenshots), it is not currently exposed to users — consider marking it as "PASS".
+   - If the element is purely structural, decorative, or presentational (e.g., layout divs, wrapper spans), it does NOT require an explicit role — consider marking it as "PASS".
 
-3. **Check Hidden/Invisible Elements:**
-   - Use visual evidence from screenshots as the PRIMARY signal for visibility and interactivity in this rule.
-   - When onclick exists but the screenshot shows plain/non-control presentation, no visible affordance, or hidden/occluded state, treat as non-interactive unless stronger semantic evidence overrides.
-   - If the element appears hidden/off-canvas/fully occluded/not rendered in screenshots, treat it as non-interactive for role-required necessity, even when CSS shows visibility: visible.
-   - Use computed CSS visibility data as supporting/fallback evidence only when screenshots are missing or ambiguous.
-   - If computed styles indicate hidden state (for example: display: none, visibility: hidden, opacity: 0), treat the element as non-interactive for role-required necessity.
+2. **Evaluate Role Implementation (Follow-up Check):** If the element DOES require a role, perform the following checks:
+   - **Correct Role Present:** The element must have the appropriate role, either via native HTML semantics (e.g., <button>, <a>, <nav>) or an explicit ARIA role attribute (e.g., role="button", role="navigation"). Native HTML elements with built-in semantics typically satisfy this automatically.
+   - **Role Matches Actual Usage:** The assigned role must match what the element actually does. For example, an element that acts as a button should have button semantics, not be a plain <div> without a role.
+   - **Interactive Roles are Focusable:** Elements with interactive roles (e.g., role="button", role="link") must also be keyboard focusable (e.g., via native behavior or tabindex="0").
 
-4. **Pass/Fail:** Assign a final status of "PASS" or "FAIL".
-   - **PASS:** The element has the proper role (native or explicit) when required, or correctly lacks a role if it is purely structural/decorative.
-   - **FAIL:** The element is missing a required role, has an incorrect role, or lacks required interactivity features for its assigned role.
-   - If the target is non-interactive, PASS only when evidence supports structural/decorative/presentational intent; FAIL when meaningful exposed purpose requires a role or native semantic equivalent.
-   - Do NOT fail based on onclick alone.
-   - Do NOT fail solely because an element looks clickable if hidden-state evidence indicates it is not currently interactive.
-   - If interactivity is uncertain or based only on weak signals, do not use weak signals alone to decide. Use semantic exposure and element purpose evidence to decide PASS/FAIL.
+3. **Pass/Fail Formulation:** Assign a final status of "PASS" or "FAIL".
+   - **PASS:** The element does not require a semantic role (structural/decorative), OR it requires one and has the correct role properly implemented.
+   - **FAIL:** The element requires a semantic role but is missing one, has an incorrect role that doesn't match its actual behavior, or has an interactive role but is not focusable.
 
-5. **Summary & Details:** Provide a concise summary and a detailed technical explanation referencing the code.
-6. **Suggestions:** Provide an actionable code snippet to fix any issues.
+4. **Summary & Details:** Provide a concise summary and a detailed technical explanation referencing the code.
+5. **Suggestions:** Provide an actionable code snippet to fix any issues.
 
 # RESPONSE FORMAT
 ---
