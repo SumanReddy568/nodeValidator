@@ -1148,12 +1148,16 @@ function initializePanel() {
         `${triggerSource}`,
       );
       screenshotDataUrl = await prepareElementScreenshotForAI();
-      setAIAnalysisFeedback(
-        "loading",
-        `Capturing full-page context screenshot for ${ruleId} analysis...`,
-        `${triggerSource}`,
-      );
-      contextScreenshotDataUrl = await prepareFullPageContextScreenshotForAI();
+      
+      if (ruleId !== "color-contrast") {
+        setAIAnalysisFeedback(
+          "loading",
+          `Capturing full-page context screenshot for ${ruleId} analysis...`,
+          `${triggerSource}`,
+        );
+        contextScreenshotDataUrl = await prepareFullPageContextScreenshotForAI();
+      }
+      
       setAIAnalysisFeedback(
         "loading",
         `Running AI analysis for ${ruleId} with visual context...`,
@@ -3962,6 +3966,11 @@ async function initializeAIFeatures() {
       window.generateAccessibleNamePrompt
     ) {
       return window.generateAccessibleNamePrompt(emptyElementData);
+    } else if (
+      rule === "color-contrast" &&
+      window.generateColorContrastPrompt
+    ) {
+      return window.generateColorContrastPrompt(emptyElementData);
     }
     return "";
   };
@@ -3971,6 +3980,7 @@ async function initializeAIFeatures() {
     "role-required": getDefaultPromptTemplate("role-required"),
     "keyboard-interactive": getDefaultPromptTemplate("keyboard-interactive"),
     "accessible-name": getDefaultPromptTemplate("accessible-name"),
+    "color-contrast": getDefaultPromptTemplate("color-contrast"),
   };
 
   // Load custom prompt from localStorage

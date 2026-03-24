@@ -503,10 +503,23 @@ console.log('Node Validator Content Script loaded');
                         'display', 'position', 'visibility', 'opacity',
                         'width', 'height',
                         'color', 'background-color',
-                        'font-size', 'font-weight'
+                        'font-size', 'font-weight', 'font-family'
                     ];
 
                     const cssInfo = cssProps.map(prop => `${prop}: ${styles.getPropertyValue(prop)}`);
+                    
+                    // Add effective background color (traversed up if transparent)
+                    const effectiveBg = getEffectiveBackgroundColor(element);
+                    if (effectiveBg && effectiveBg !== styles.getPropertyValue('background-color')) {
+                        cssInfo.push(`effective-background-color: ${effectiveBg} (inherited)`);
+                    }
+
+                    // Add effective foreground color
+                    const effectiveFg = getEffectiveForegroundColor(element);
+                    if (effectiveFg && effectiveFg !== styles.getPropertyValue('color')) {
+                        cssInfo.push(`effective-foreground-color: ${effectiveFg}`);
+                    }
+                    
                     nodeCssProperties = cssInfo.join('\n');
                 } catch (e) {
                     console.warn('Error extracting CSS properties:', e);
@@ -708,6 +721,42 @@ console.log('Node Validator Content Script loaded');
                 console.error('Fallback scroll also failed:', e2);
             }
         }
+    }
+
+    /**
+     * Finds the first non-transparent background color by traversing up the DOM.
+     */
+    function getEffectiveBackgroundColor(element) {
+        let current = element;
+        while (current) {
+            const bg = window.getComputedStyle(current).backgroundColor;
+            // Check if color is not transparent (rgba(0,0,0,0) or 'transparent')
+            if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+                return bg;
+            }
+            current = current.parentElement;
+        }
+        return 'rgb(255, 255, 255)'; // Default to white if no background found
+    }
+
+    /**
+     * Finds the foreground color, prioritizing children if the current element is just a wrapper.
+     */
+    function getEffectiveForegroundColor(element) {
+        const styles = window.getComputedStyle(element);
+        const color = styles.color;
+        
+        // If the element itself has no text but has children, check the first child with text
+        if (!element.textContent.trim() && element.children.length > 0) {
+            for (const child of element.children) {
+                const childText = child.textContent.trim();
+                if (childText) {
+                    return window.getComputedStyle(child).color;
+                }
+            }
+        }
+        
+        return color;
     }
 
     function createStatusPanel() {

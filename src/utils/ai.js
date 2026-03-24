@@ -154,6 +154,10 @@
           id: "accessible-name",
           name: "Accessible Name",
         },
+        {
+          id: "color-contrast",
+          name: "Color Contrast",
+        },
       ];
     }
 
@@ -811,6 +815,11 @@ Raw Response: ${responseText}`,
           window.generateAccessibleNamePrompt
         ) {
           prompt = window.generateAccessibleNamePrompt(normalizedElementData);
+        } else if (
+          this.currentRule.id === "color-contrast" &&
+          window.generateColorContrastPrompt
+        ) {
+          prompt = window.generateColorContrastPrompt(normalizedElementData);
         } else {
           prompt = this.generatePrompt(normalizedElementData, this.currentRule);
         }
@@ -819,7 +828,7 @@ Raw Response: ${responseText}`,
           : [
               options.screenshotDataUrl,
               elementData?.screenshotDataUrl,
-              elementData?.contextScreenshotDataUrl,
+              this.currentRule.id === "color-contrast" ? null : elementData?.contextScreenshotDataUrl,
             ].filter(Boolean);
         console.log(
           `Calling ${this.providers[this.currentProvider].name} API...`,

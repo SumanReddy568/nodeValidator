@@ -206,6 +206,16 @@
             'Names are programmatically associated with elements',
             'Hidden elements have appropriate accessible names'
         ]
+    }, {
+        id: 'color-contrast',
+        name: 'Color Contrast',
+        description: 'The visual presentation of text and images of text has a contrast ratio of at least 4.5:1 (or 3:1 for large text).',
+        details: 'Essential for users with low vision to read text clearly against its background. Text over gradients or images must also maintain sufficient contrast.',
+        criteria: [
+            'Standard text has a contrast ratio of at least 4.5:1',
+            'Large text (18pt regular or 14pt bold) has a contrast ratio of at least 3:1',
+            'If the element has no text content or is decorative, it automatically passes'
+        ]
     }];
     window.accessibilityDefaultRules = {
         getDefaultRules: function () {
