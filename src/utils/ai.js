@@ -3,6 +3,8 @@
  * * Provides accessibility analysis capabilities using AI (Gemini)
  */
 (function () {
+  const AI_MAX_OUTPUT_TOKENS = 8192;
+
   // Check if AIAnalyzer is already defined
   if (window.AIAnalyzer) {
     console.warn("AIAnalyzer already defined, skipping redefinition");
@@ -608,6 +610,117 @@ You must use the runtime element data above for the evaluation and return only a
     }
 
     /**
+     * Safely extract a quoted JSON string value from a raw response.
+     */
+    extractQuotedField(rawText, key) {
+      const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const quotedMatch = rawText.match(
+        new RegExp(`"${escapedKey}"\\s*:\\s*"([\\s\\S]*?)"(?=\\s*,\\s*"|\\s*}\\s*$)`, "i"),
+      );
+
+      if (quotedMatch) {
+        try {
+          return JSON.parse(`"${quotedMatch[1]}"`);
+        } catch (_error) {
+          return quotedMatch[1].replace(/\\"/g, '"').replace(/\\n/g, "\n");
+        }
+      }
+
+      const partialMatch = rawText.match(
+        new RegExp(`"${escapedKey}"\\s*:\\s*"([\\s\\S]*)$`, "i"),
+      );
+      if (partialMatch) {
+        return partialMatch[1].replace(/\\"/g, '"').replace(/\\n/g, "\n");
+      }
+
+      return "";
+    }
+
+    /**
+     * Build a normalized result object from parsed AI output.
+     */
+    normalizeAIResult(result = {}) {
+      const normalizedStatus = String(
+        result.status || result.Status || "ERROR",
+      ).toUpperCase();
+      const confidenceRaw =
+        result.Confidence ?? result.confidence ?? result.CONFIDENCE ?? 0;
+      const confidence = Number(confidenceRaw);
+
+      return {
+        status: normalizedStatus === "PASS" || normalizedStatus === "FAIL" ? normalizedStatus : "ERROR",
+        Confidence: Number.isFinite(confidence)
+          ? Math.max(0, Math.min(100, Math.round(confidence)))
+          : 0,
+        summary: typeof result.summary === "string" ? result.summary : "",
+        details: typeof result.details === "string" ? result.details : "",
+        suggestions:
+          typeof result.suggestions === "string" ? result.suggestions : "",
+      };
+    }
+
+    /**
+     * Parse model output with a best-effort fallback for truncated JSON.
+     */
+    parseAIResponse(rawResponse, finishReason = "") {
+      const responseText = typeof rawResponse === "string" ? rawResponse : "";
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+
+      if (jsonMatch) {
+        let jsonString = jsonMatch[0];
+
+        try {
+          return this.normalizeAIResult(JSON.parse(jsonString));
+        } catch (_error) {
+          jsonString = jsonString.replace(/,(\s*[}\]])/g, "$1");
+          try {
+            return this.normalizeAIResult(JSON.parse(jsonString));
+          } catch (_error2) {
+            // Continue into best-effort field extraction below.
+          }
+        }
+      }
+
+      const statusMatch = responseText.match(/"status"\s*:\s*"(PASS|FAIL|ERROR)"/i);
+      const confidenceMatch = responseText.match(
+        /"(Confidence|confidence)"\s*:\s*(-?\d+(?:\.\d+)?)/,
+      );
+
+      const recovered = {
+        status: statusMatch ? statusMatch[1].toUpperCase() : "ERROR",
+        Confidence: confidenceMatch ? Number(confidenceMatch[2]) : 0,
+        summary: this.extractQuotedField(responseText, "summary"),
+        details: this.extractQuotedField(responseText, "details"),
+        suggestions: this.extractQuotedField(responseText, "suggestions"),
+      };
+
+      const hasUsefulContent =
+        recovered.status !== "ERROR" ||
+        recovered.summary ||
+        recovered.details ||
+        recovered.suggestions;
+
+      if (hasUsefulContent) {
+        const normalizedRecovered = this.normalizeAIResult(recovered);
+        if (finishReason === "MAX_TOKENS") {
+          normalizedRecovered.details = `${
+            normalizedRecovered.details || "Model output was truncated."
+          }\n\nNote: The model response was cut off by token limit (finishReason: MAX_TOKENS).`;
+        }
+        return normalizedRecovered;
+      }
+
+      return {
+        status: "ERROR",
+        Confidence: 0,
+        summary: "Unexpected AI response format",
+        details: `The AI did not return a properly formatted JSON response.
+Raw Response: ${responseText}`,
+        suggestions: `Raw Response: ${responseText}`,
+      };
+    }
+
+    /**
      * Analyze element against selected accessibility rule
      */
     async analyzeElement(elementData, options = {}) {
@@ -682,60 +795,22 @@ You must use the runtime element data above for the evaluation and return only a
           throw new Error(`Unsupported provider: ${this.currentProvider}`);
         }
 
-        const { rawResponse, responseTime, tokenCount } = apiResponse;
+        const { rawResponse, responseTime, tokenCount, finishReason } =
+          apiResponse;
 
         this.isAnalyzing = false;
         console.log(
           `${this.providers[this.currentProvider].name} API response received`,
         );
         // console.log('Gemini raw response:', rawResponse);
-        let result;
-        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          let jsonString = jsonMatch[0];
-          // console.log('Extracted JSON string:', jsonString);
-
-          try {
-            result = JSON.parse(jsonString);
-            console.log("Successfully parsed JSON:", result);
-          } catch (e) {
-            console.warn("Direct JSON parse failed. Attempting to repair.", e);
-            jsonString = jsonString.replace(/,(\s*[}\]])/g, "$1");
-
-            try {
-              result = JSON.parse(jsonString);
-              console.log("Successfully repaired and parsed JSON:", result);
-            } catch (e2) {
-              console.error(
-                "Failed to parse AI response JSON even after repair:",
-                e2,
-              );
-              result = {
-                status: "ERROR",
-                summary: "Failed to parse AI response",
-                details: `The AI returned a response that could not be parsed as valid JSON.
-                                            Raw Response: ${rawResponse}`,
-                // Return the raw response for debugging
-                suggestions: `Raw Response: ${rawResponse}`,
-              };
-            }
-          }
-        } else {
-          console.error("No JSON object found in AI response.");
-          result = {
-            status: "ERROR",
-            summary: "Unexpected AI response format",
-            details: `The AI did not return a properly formatted JSON response.
-                                    Raw Response: ${rawResponse}`,
-            suggestions: `Raw Response: ${rawResponse}`,
-          };
-        }
+        const result = this.parseAIResponse(rawResponse, finishReason);
 
         // Append metadata to the result object
         result.metadata = {
           responseTime: responseTime,
           inputTokens: tokenCount.input,
           outputTokens: tokenCount.output,
+          finishReason: finishReason || "UNKNOWN",
         };
 
         return {
@@ -812,9 +887,10 @@ You must use the runtime element data above for the evaluation and return only a
           ],
           generationConfig: {
             temperature: 0.2,
-            maxOutputTokens: 2048,
+            maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
             topP: 0.8,
             topK: 40,
+            responseMimeType: "application/json",
           },
         };
 
@@ -861,6 +937,7 @@ You must use the runtime element data above for the evaluation and return only a
           rawResponse: data.candidates[0].content.parts[0].text,
           responseTime: responseTime,
           tokenCount: tokenCount,
+          finishReason: data.candidates[0].finishReason || "",
         };
       } catch (error) {
         console.error("Gemini API call failed:", error);
@@ -1004,9 +1081,10 @@ You must use the runtime element data above for the evaluation and return only a
           ],
           generationConfig: {
             temperature: 0.2,
-            maxOutputTokens: 2048,
+            maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
             topP: 0.8,
             topK: 40,
+            responseMimeType: "application/json",
           },
         };
 
@@ -1050,6 +1128,7 @@ You must use the runtime element data above for the evaluation and return only a
           rawResponse: data.candidates[0].content.parts[0].text,
           responseTime: responseTime,
           tokenCount: tokenCount,
+          finishReason: data.candidates[0].finishReason || "",
         };
       } catch (error) {
         console.error("Vertex AI API call failed:", error);
@@ -1090,7 +1169,7 @@ You must use the runtime element data above for the evaluation and return only a
             },
           ],
           temperature: 0.2,
-          max_tokens: 2048,
+          max_tokens: AI_MAX_OUTPUT_TOKENS,
         };
 
         const response = await fetch(apiUrl, {
@@ -1133,6 +1212,7 @@ You must use the runtime element data above for the evaluation and return only a
           rawResponse: data.choices[0].message.content,
           responseTime: responseTime,
           tokenCount: tokenCount,
+          finishReason: data.choices[0].finish_reason || "",
         };
       } catch (error) {
         console.error("OpenAI API call failed:", error);

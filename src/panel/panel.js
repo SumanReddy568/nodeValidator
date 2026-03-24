@@ -1598,6 +1598,51 @@ function initializePanel() {
 
           console.log("Element status received in panel:", message);
 
+          // In automated mode, skip AI/manual wait when element is missing.
+          if (automatedMode && !message.found) {
+            const autoComment = "[Auto] Element not found on page.";
+
+            if (validationData[currentIndex]) {
+              validationData[currentIndex].status = statusButtons.statusNotValid;
+              validationData[currentIndex].comments = autoComment;
+            }
+
+            selectedStatus = statusButtons.statusNotValid;
+            if (statusNotes) {
+              statusNotes.value = autoComment;
+            }
+
+            const notValidBtn = document.getElementById("statusNotValid");
+            Object.keys(statusButtons).forEach((id) => {
+              const btn = document.getElementById(id);
+              if (btn) btn.classList.remove("selected");
+            });
+            if (notValidBtn) {
+              notValidBtn.classList.add("selected");
+              previewStatusChange("statusNotValid");
+            }
+
+            chrome.runtime.sendMessage({
+              action: "UPDATE_STATUS",
+              payload: {
+                index: currentIndex,
+                status: statusButtons.statusNotValid,
+                comments: autoComment,
+              },
+            });
+
+            setAIAnalysisFeedback(
+              "success",
+              "Element missing; auto-marked as Not Valid.",
+              "element not found in automated mode",
+            );
+
+            setTimeout(() => {
+              moveToNextUrl();
+            }, 700);
+            return;
+          }
+
           // If in manual mode, pre-select the recommended button
           if (!automatedMode) {
             if (!message.found) {
@@ -2106,6 +2151,11 @@ function initializePanel() {
                 btn.classList.remove("selected");
               }
             });
+
+            // Release the submit lock before navigating to the next item.
+            processingNextUrl = false;
+            nextUrlBtn.disabled = automatedMode;
+            nextUrlBtn.textContent = "Next URL";
 
             // Move to next URL
             moveToNextUrl();
