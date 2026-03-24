@@ -65,16 +65,19 @@ strict_rule: Do not consider element highlighted border for evaluation, it is ju
 
 # RESPONSE FORMAT
 ---
-The entire response MUST be a single, valid JSON object and nothing else.
-IMPORTANT: Include a "Confidence" field (number between 0 and 100).
-\`\`\`json
+CRITICAL: The entire response MUST be a single, valid JSON object and NOTHING ELSE.
+- DO NOT include markdown code blocks (e.g., do NOT use backticks like \`\`\`json).
+- DO NOT include any introductory or concluding text.
+- Start your response directly with '{' and end it with '}'.
+- Ensure all property names and string values are enclosed in double quotes.
+- The "Confidence" field must be a raw number (0-100), not a string.
+
 {
-  "status": "PASS" or "FAIL",
+  "status": "PASS" | "FAIL",
   "Confidence": number,
   "summary": "string",
   "details": "string",
   "suggestions": "string"
 }
-\`\`\`
 `;
 };

@@ -465,17 +465,20 @@
 
                 # RESPONSE FORMAT
                 ---
-                The entire response MUST be a single, valid JSON object and nothing else. Do not include any pre-text, post-text, markdown, or code block delimiters outside of the JSON. The JSON keys and values must be exactly as specified below.
-                IMPORTANT: Include a "Confidence" field (number between 0 and 100) representing your confidence in the PASS/FAIL decision.
-                \`\`\`json
+                CRITICAL: The entire response MUST be a single, valid JSON object and NOTHING ELSE.
+                - DO NOT include markdown code blocks (e.g., do NOT use backticks like \`\`\`json).
+                - DO NOT include any introductory or concluding text.
+                - Start your response directly with '{' and end it with '}'.
+                - Ensure all property names and string values are enclosed in double quotes.
+                - The "Confidence" field must be a raw number (0-100), not a string.
+
                 {
-                "status": "PASS" or "FAIL",
-                "Confidence": "number (0-100)"
-                "summary": "string",
-                "details": "string",
-                "suggestions": "string"
+                  "status": "PASS" | "FAIL",
+                  "Confidence": number,
+                  "summary": "string",
+                  "details": "string",
+                  "suggestions": "string"
                 }
-                \`\`\`
                 `;
       // console.log('Generated prompt:', promptText);
       return promptText;
