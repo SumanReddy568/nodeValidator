@@ -32,6 +32,8 @@ let currentElementData = {
 
 let processingNextUrl = false;
 let currentIndex = 0;
+let aiAnalysisInProgress = false;
+let aiAnalysisPromise = null;
 
 // Theme management
 const themeToggle = document.getElementById("themeToggle");
@@ -1166,142 +1168,156 @@ function initializePanel() {
       );
     }
 
-    window.aiAnalyzer
-      .analyzeElement(currentElementData, {
-        imageDataUrls: [screenshotDataUrl, contextScreenshotDataUrl].filter(
-          Boolean,
-        ),
-      })
-      .then((result) => {
-        if (result?.success === false) {
+    // Mark AI analysis as in-progress so automated mode waits for completion
+    aiAnalysisInProgress = true;
+
+    try {
+      const result = await window.aiAnalyzer
+        .analyzeElement(currentElementData, {
+          imageDataUrls: [screenshotDataUrl, contextScreenshotDataUrl].filter(
+            Boolean,
+          ),
+        });
+
+      if (result?.success === false) {
+        setAIAnalysisFeedback(
+          "error",
+          result.error || "AI analysis failed.",
+          `${triggerSource}`,
+        );
+      } else {
+        setAIAnalysisFeedback(
+          "success",
+          `AI analysis completed for ${ruleId}.`,
+          `${triggerSource}`,
+        );
+      }
+
+      if (window.renderAIAnalysisResult && resultContainer) {
+        window.renderAIAnalysisResult(result, resultContainer);
+
+        // Ensure Mark Status section header stays visible after AI results are rendered
+        setTimeout(() => {
+          const statusButtonsSection = document.getElementById(
+            "statusButtonsSection",
+          );
+          if (statusButtonsSection) {
+            const header = statusButtonsSection.querySelector(
+              ".collapsible-header",
+            );
+            if (header) {
+              header.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+          }
+        }, 100);
+      }
+
+      if (result.success && result.result) {
+        const aiData = result.result;
+        const confidence = parseInt(aiData.Confidence, 10) || 0;
+        const status = aiData.status?.toUpperCase() || "UNKNOWN";
+        const summary = aiData.summary || "";
+        const isHighConfidence =
+          confidence >= AI_AUTO_MARK_CONFIDENCE_THRESHOLD;
+
+        let statusStr;
+        let commentStr;
+
+        if (status === "FAIL" && isHighConfidence) {
+          statusStr = "True Positive";
+          commentStr = `[AI Auto] TP. Confidence: ${confidence}%. Reason: ${summary}`;
           setAIAnalysisFeedback(
-            "error",
-            result.error || "AI analysis failed.",
+            "success",
+            `AI marked True Positive at ${confidence}% confidence.`,
+            `${triggerSource}`,
+          );
+        } else if (status === "PASS" && isHighConfidence) {
+          statusStr = "Not a Violation";
+          commentStr = `[AI Auto] Not a Violation. Confidence: ${confidence}%. Reason: ${summary}`;
+          setAIAnalysisFeedback(
+            "success",
+            `AI marked Not a Violation at ${confidence}% confidence.`,
             `${triggerSource}`,
           );
         } else {
+          statusStr = "Needs Review";
+          commentStr = `[AI Review Required] Status: ${status}. Confidence: ${confidence}%. Review the AI result and update the status manually. Reason: ${summary}`;
           setAIAnalysisFeedback(
-            "success",
-            `AI analysis completed for ${ruleId}.`,
+            "waiting",
+            `Manual review required. AI confidence is ${confidence}%.`,
             `${triggerSource}`,
           );
         }
 
-        if (window.renderAIAnalysisResult && resultContainer) {
-          window.renderAIAnalysisResult(result, resultContainer);
-
-          // Ensure Mark Status section header stays visible after AI results are rendered
-          setTimeout(() => {
-            const statusButtonsSection = document.getElementById(
-              "statusButtonsSection",
-            );
-            if (statusButtonsSection) {
-              const header = statusButtonsSection.querySelector(
-                ".collapsible-header",
-              );
-              if (header) {
-                header.scrollIntoView({ behavior: "smooth", block: "start" });
-              }
-            }
-          }, 100);
+        const notes =
+          document.getElementById("validation-notes") ||
+          document.getElementById("statusNotes");
+        if (notes) {
+          notes.value = commentStr;
         }
 
-        if (result.success && result.result) {
-          const aiData = result.result;
-          const confidence = parseInt(aiData.Confidence, 10) || 0;
-          const status = aiData.status?.toUpperCase() || "UNKNOWN";
-          const summary = aiData.summary || "";
-          const isHighConfidence =
-            confidence >= AI_AUTO_MARK_CONFIDENCE_THRESHOLD;
-
-          let statusStr;
-          let commentStr;
-
-          if (status === "FAIL" && isHighConfidence) {
-            statusStr = "True Positive";
-            commentStr = `[AI Auto] TP. Confidence: ${confidence}%. Reason: ${summary}`;
-            setAIAnalysisFeedback(
-              "success",
-              `AI marked True Positive at ${confidence}% confidence.`,
-              `${triggerSource}`,
-            );
-          } else if (status === "PASS" && isHighConfidence) {
-            statusStr = "Not a Violation";
-            commentStr = `[AI Auto] Not a Violation. Confidence: ${confidence}%. Reason: ${summary}`;
-            setAIAnalysisFeedback(
-              "success",
-              `AI marked Not a Violation at ${confidence}% confidence.`,
-              `${triggerSource}`,
-            );
-          } else {
-            commentStr = `[AI Review Required] Status: ${status}. Confidence: ${confidence}%. Review the AI result and update the status manually. Reason: ${summary}`;
-            setAIAnalysisFeedback(
-              "waiting",
-              `Manual review required. AI confidence is ${confidence}%.`,
-              `${triggerSource}`,
-            );
-          }
-
-          const notes =
-            document.getElementById("validation-notes") ||
-            document.getElementById("statusNotes");
-          if (notes) {
-            notes.value = commentStr;
-          }
-
-          if (statusStr) {
-            const btnId = Object.keys(statusButtons).find(
-              (key) => statusButtons[key] === statusStr,
-            );
-            if (btnId) {
-              const btn = document.getElementById(btnId);
-              if (btn) {
-                // Update visual state and selected status manually since buttons are disabled in automated mode
-                Object.keys(statusButtons).forEach((id) => {
-                  const otherBtn = document.getElementById(id);
-                  if (otherBtn) otherBtn.classList.remove("selected");
-                });
-                btn.classList.add("selected");
-                selectedStatus = statusStr;
-                previewStatusChange(btnId);
-              }
+        if (statusStr) {
+          const btnId = Object.keys(statusButtons).find(
+            (key) => statusButtons[key] === statusStr,
+          );
+          if (btnId) {
+            const btn = document.getElementById(btnId);
+            if (btn) {
+              // Update visual state and selected status manually since buttons are disabled in automated mode
+              Object.keys(statusButtons).forEach((id) => {
+                const otherBtn = document.getElementById(id);
+                if (otherBtn) otherBtn.classList.remove("selected");
+              });
+              btn.classList.add("selected");
+              selectedStatus = statusStr;
+              previewStatusChange(btnId);
             }
-
-            chrome.runtime.sendMessage({
-              action: "UPDATE_STATUS",
-              payload: {
-                index: currentIndex,
-                status: statusStr,
-                comments: commentStr,
-              },
-            });
-
-            if (automatedMode) {
-              console.log("Automated mode: Moving to next URL after AI mark...");
-              setTimeout(() => {
-                moveToNextUrl();
-              }, 2000);
-            }
-          } else {
-            showNotification(
-              `AI confidence is ${confidence}%. Review the AI result and update the status manually.`,
-              "warning",
-              5000,
-            );
           }
+
+          chrome.runtime.sendMessage({
+            action: "UPDATE_STATUS",
+            payload: {
+              index: currentIndex,
+              status: statusStr,
+              comments: commentStr,
+            },
+          });
+
+          if (automatedMode) {
+            console.log("Automated mode: Moving to next URL after AI mark...");
+            setTimeout(() => {
+              moveToNextUrl();
+            }, 2000);
+          }
+        } else {
+          showNotification(
+            `AI confidence is ${confidence}%. Review the AI result and update the status manually.`,
+            "warning",
+            5000,
+          );
         }
-      })
-      .catch((err) => {
-        console.error("AI analysis error:", err);
-        setAIAnalysisFeedback(
-          "error",
-          `AI analysis failed: ${err.message}`,
-          `${triggerSource}`,
-        );
-        if (resultContainer) {
-          resultContainer.innerHTML = `<p style="color: #ea4335;">Failed to analyze: ${err.message}</p>`;
-        }
-      });
+      }
+    } catch (err) {
+      console.error("AI analysis error:", err);
+      setAIAnalysisFeedback(
+        "error",
+        `AI analysis failed: ${err.message}`,
+        `${triggerSource}`,
+      );
+      if (resultContainer) {
+        resultContainer.innerHTML = `<p style="color: #ea4335;">Failed to analyze: ${err.message}</p>`;
+      }
+
+      // In automated mode, move to next even on error so automation doesn't stall
+      if (automatedMode) {
+        console.log("Automated mode: Moving to next URL after AI error...");
+        setTimeout(() => {
+          moveToNextUrl();
+        }, 2000);
+      }
+    } finally {
+      aiAnalysisInProgress = false;
+    }
   }
 
   const evaluateUsingAiCheckbox = document.getElementById("evaluateUsingAi");
@@ -1483,7 +1499,8 @@ function initializePanel() {
           );
 
           // Check if we need to auto-evaluate with AI
-          triggerCurrentElementAIAnalysis("element details received");
+          // Store the promise so automated mode can wait for it
+          aiAnalysisPromise = triggerCurrentElementAIAnalysis("element details received");
         }
         // Handle various message types
         if (message.action === "UPDATE_STATUS_RESULT") {
@@ -2197,8 +2214,19 @@ function initializePanel() {
   }
 
   // Function to move to the next URL
-  function moveToNextUrl() {
+  async function moveToNextUrl() {
     if (processingNextUrl) return;
+
+    // In automated mode, wait for any in-progress AI analysis to complete first
+    if (automatedMode && aiAnalysisInProgress && aiAnalysisPromise) {
+      console.log("Automated mode: Waiting for AI analysis to complete before moving to next URL...");
+      try {
+        await aiAnalysisPromise;
+      } catch (e) {
+        console.warn("AI analysis promise rejected while waiting:", e);
+      }
+    }
+
     processingNextUrl = true;
 
     if (nextUrlBtn) {
