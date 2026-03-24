@@ -3696,9 +3696,15 @@ async function initializeAIFeatures() {
   const geminiSettings = document.getElementById("geminiSettings");
   const vertexSettings = document.getElementById("vertexSettings");
   const openaiSettings = document.getElementById("openaiSettings");
+  const openrouterSettings = document.getElementById("openrouterSettings");
 
   function updateProviderSettingsVisibility(selectedProvider) {
-    if (!geminiSettings || !vertexSettings || !openaiSettings) {
+    if (
+      !geminiSettings ||
+      !vertexSettings ||
+      !openaiSettings ||
+      !openrouterSettings
+    ) {
       return;
     }
 
@@ -3708,9 +3714,17 @@ async function initializeAIFeatures() {
       selectedProvider === "vertex" ? "block" : "none";
     openaiSettings.style.display =
       selectedProvider === "openai" ? "block" : "none";
+    openrouterSettings.style.display =
+      selectedProvider === "openrouter" ? "block" : "none";
   }
 
-  if (providerSelect && geminiSettings && vertexSettings && openaiSettings) {
+  if (
+    providerSelect &&
+    geminiSettings &&
+    vertexSettings &&
+    openaiSettings &&
+    openrouterSettings
+  ) {
     providerSelect.addEventListener("change", function () {
       updateProviderSettingsVisibility(providerSelect.value);
     });
@@ -3741,6 +3755,32 @@ async function initializeAIFeatures() {
     });
   }
 
+  // Save OpenRouter settings
+  const saveOpenRouterSettingsButton = document.getElementById(
+    "saveOpenRouterSettings",
+  );
+  if (saveOpenRouterSettingsButton) {
+    saveOpenRouterSettingsButton.addEventListener("click", function () {
+      const apiKeyInput = document.getElementById("openrouterApiKey");
+      const apiKey = apiKeyInput.value.trim();
+
+      if (apiKey) {
+        window.aiAnalyzer.saveOpenRouterSettings(apiKey).then((result) => {
+          if (result.success) {
+            showNotification("OpenRouter API key saved successfully", "success");
+          } else {
+            showNotification(
+              "Failed to save OpenRouter API key: " + result.error,
+              "error",
+            );
+          }
+        });
+      } else {
+        showNotification("Please enter a valid API key", "warning");
+      }
+    });
+  }
+
   // Save provider settings
   const saveProviderSettingsButton = document.getElementById(
     "saveProviderSettings",
@@ -3757,6 +3797,10 @@ async function initializeAIFeatures() {
         selectedModel = document.getElementById("vertexModelSelect").value;
       } else if (selectedProvider === "openai") {
         selectedModel = document.getElementById("openaiModelSelect").value;
+      } else if (selectedProvider === "openrouter") {
+        selectedModel = document
+          .getElementById("openrouterModelSelect")
+          .value.trim();
       }
 
       if (!selectedModel) {
@@ -3790,6 +3834,7 @@ async function initializeAIFeatures() {
       "vertexLocation",
       "vertexCredentials",
       "openaiApiKey",
+      "openrouterApiKey",
       "aiProvider",
       "aiModel",
     ],
@@ -3820,6 +3865,13 @@ async function initializeAIFeatures() {
       if (result.openaiApiKey) {
         const openaiApiKeyInput = document.getElementById("openaiApiKey");
         if (openaiApiKeyInput) openaiApiKeyInput.value = result.openaiApiKey;
+      }
+      if (result.openrouterApiKey) {
+        const openrouterApiKeyInput =
+          document.getElementById("openrouterApiKey");
+        if (openrouterApiKeyInput) {
+          openrouterApiKeyInput.value = result.openrouterApiKey;
+        }
       }
 
       // Load provider and model settings

@@ -119,6 +119,22 @@
             min-height: 80px;
             resize: vertical;
         }
+
+        /* Keep theme toggle + settings grouped on the left */
+        .theme-switch {
+            gap: 12px !important;
+        }
+
+        .theme-switch .settings-menu-button {
+            position: static !important;
+            margin-left: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            color: inherit;
+        }
     </style>
 </head>
 
@@ -141,6 +157,15 @@
                     <input type="checkbox" id="themeToggle">
                     <span class="slider round"></span>
                 </label>
+                <button class="settings-menu-button" id="settingsMenuButton" title="Settings">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path
+                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                        </path>
+                    </svg>
+                </button>
             </div>
             <div class="product-info">
                 <div class="logo-version">
@@ -150,16 +175,6 @@
                 </div>
                 <p class="description">Validate target nodes across multiple URLs and export results</p>
             </div>
-            <!-- Settings menu button -->
-            <button class="settings-menu-button" id="settingsMenuButton" title="Settings">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path
-                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
-                    </path>
-                </svg>
-            </button>
             <a href="https://github.com/sumanreddy568/nodeValidator" target="_blank" class="github-link">
                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 16 16" fill="currentColor"
                     class="github-icon">
@@ -199,6 +214,7 @@
                                 <option value="gemini">Google Gemini AI</option>
                                 <option value="vertex">Google Vertex AI (GCP)</option>
                                 <option value="openai">OpenAI (GPT Models)</option>
+                                <option value="openrouter">OpenRouter</option>
                             </select>
                         </div>
                         <div class="card-actions">
@@ -283,6 +299,36 @@
                             </div>
                             <div class="card-actions">
                                 <button id="saveOpenAISettings" class="premium-btn secondary">Save OpenAI
+                                    configuration</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- OpenRouter Configuration Section -->
+                    <div id="openrouterSettings" class="provider-config-section" style="display: none;">
+                        <div class="config-card accent-openai">
+                            <h4 class="card-title">OpenRouter Settings</h4>
+                            <div class="input-group">
+                                <label>API Key</label>
+                                <input type="password" id="openrouterApiKey" class="premium-input" placeholder="sk-or-...">
+                            </div>
+                            <div class="input-group">
+                                <label>Model</label>
+                                <input type="text" id="openrouterModelSelect" class="premium-input"
+                                    list="openrouterPopularModels"
+                                    placeholder="Type model name (e.g., google/gemini-2.5-flash)">
+                                <datalist id="openrouterPopularModels">
+                                    <option value="google/gemini-2.5-flash"></option>
+                                    <option value="google/gemini-2.5-pro"></option>
+                                    <option value="google/gemini-2.0-flash-001"></option>
+                                    <option value="openai/gpt-4o-mini"></option>
+                                    <option value="openai/gpt-4o"></option>
+                                    <option value="anthropic/claude-3.5-sonnet"></option>
+                                    <option value="anthropic/claude-3.7-sonnet"></option>
+                                </datalist>
+                            </div>
+                            <div class="card-actions">
+                                <button id="saveOpenRouterSettings" class="premium-btn secondary">Save OpenRouter
                                     configuration</button>
                             </div>
                         </div>

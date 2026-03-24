@@ -34,6 +34,19 @@
           apiKey: null,
           models: ["gpt-4o", "gpt-4o-mini", "o1-preview", "o1-mini"],
         },
+        openrouter: {
+          name: "OpenRouter",
+          apiKey: null,
+          models: [
+            "google/gemini-2.5-flash",
+            "google/gemini-2.5-pro",
+            "google/gemini-2.0-flash-001",
+            "openai/gpt-4o-mini",
+            "openai/gpt-4o",
+            "anthropic/claude-3.5-sonnet",
+            "anthropic/claude-3.7-sonnet",
+          ],
+        },
       };
       this.currentProvider = "gemini";
       this.currentModel = "gemini-2.5-flash";
@@ -62,6 +75,7 @@
           "vertexServiceAccount",
           "vertexCredentials",
           "openaiApiKey",
+          "openrouterApiKey",
           "aiProvider",
           "aiModel",
           "accessibilityRules",
@@ -69,6 +83,9 @@
 
         if (storage.openaiApiKey && this.providers.openai) {
           this.providers.openai.apiKey = storage.openaiApiKey;
+        }
+        if (storage.openrouterApiKey && this.providers.openrouter) {
+          this.providers.openrouter.apiKey = storage.openrouterApiKey;
         }
 
         if (storage.geminiApiKey) {
@@ -239,6 +256,27 @@
     }
 
     /**
+     * Save OpenRouter settings to storage
+     */
+    async saveOpenRouterSettings(apiKey) {
+      try {
+        await chrome.storage.local.set({
+          openrouterApiKey: apiKey,
+        });
+        this.providers.openrouter.apiKey = apiKey;
+        return {
+          success: true,
+        };
+      } catch (error) {
+        console.error("Error saving OpenRouter settings:", error);
+        return {
+          success: false,
+          error: error.message,
+        };
+      }
+    }
+
+    /**
      * Set current AI provider
      */
     async setProvider(provider, model = null) {
@@ -293,6 +331,8 @@
         case "vertex":
           return !!(prov.projectId && prov.credentials);
         case "openai":
+          return !!prov.apiKey;
+        case "openrouter":
           return !!prov.apiKey;
         default:
           return false;
@@ -791,6 +831,8 @@ Raw Response: ${responseText}`,
           apiResponse = await this.callVertexAPI(prompt, imageDataUrls);
         } else if (this.currentProvider === "openai") {
           apiResponse = await this.callOpenAIAPI(prompt, imageDataUrls);
+        } else if (this.currentProvider === "openrouter") {
+          apiResponse = await this.callOpenRouterAPI(prompt, imageDataUrls);
         } else {
           throw new Error(`Unsupported provider: ${this.currentProvider}`);
         }
@@ -1217,6 +1259,90 @@ Raw Response: ${responseText}`,
       } catch (error) {
         console.error("OpenAI API call failed:", error);
         throw new Error(`OpenAI API call failed: ${error.message}`);
+      }
+    }
+
+    /**
+     * Call OpenRouter API (OpenAI-compatible endpoint)
+     */
+    async callOpenRouterAPI(prompt, imageDataUrls = []) {
+      try {
+        const startTime = performance.now();
+        const apiUrl = "https://openrouter.ai/api/v1/chat/completions";
+
+        const content = [
+          {
+            type: "text",
+            text: prompt,
+          },
+        ];
+
+        imageDataUrls.filter(Boolean).forEach((dataUrl) => {
+          content.push({
+            type: "image_url",
+            image_url: {
+              url: dataUrl,
+            },
+          });
+        });
+
+        const requestBody = {
+          model: this.currentModel,
+          messages: [
+            {
+              role: "user",
+              content: content.length > 1 ? content : prompt,
+            },
+          ],
+          temperature: 0.2,
+          max_tokens: AI_MAX_OUTPUT_TOKENS,
+        };
+
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.providers.openrouter.apiKey}`,
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        const endTime = performance.now();
+        const responseTime = (endTime - startTime).toFixed(2);
+
+        if (!response.ok) {
+          throw new Error(
+            `OpenRouter API request failed with status ${response.status}: ${await response.text()}`,
+          );
+        }
+
+        const data = await response.json();
+
+        if (
+          !data.choices ||
+          !data.choices[0] ||
+          !data.choices[0].message ||
+          !data.choices[0].message.content
+        ) {
+          throw new Error(
+            "Unexpected OpenRouter API response format: missing candidate text.",
+          );
+        }
+
+        const tokenCount = {
+          input: data.usage?.prompt_tokens || 0,
+          output: data.usage?.completion_tokens || 0,
+        };
+
+        return {
+          rawResponse: data.choices[0].message.content,
+          responseTime: responseTime,
+          tokenCount: tokenCount,
+          finishReason: data.choices[0].finish_reason || "",
+        };
+      } catch (error) {
+        console.error("OpenRouter API call failed:", error);
+        throw new Error(`OpenRouter API call failed: ${error.message}`);
       }
     }
   }
