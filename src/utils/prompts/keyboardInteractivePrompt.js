@@ -28,10 +28,10 @@ ${elementData.attributes}
 # INSTRUCTIONS
 ---
 Your analysis must be methodical and precise.
-strict_rule: Do not consider element highlighted border for evaluation, it is just for representation of the base element
+Strict visual rule: Ignore any pink/magenta highlighted border or outline shown in screenshots/base images. That border is only for targeting the element and must NOT be treated as part of the UI, style, contrast, spacing, or accessibility behavior.
 
 1. **Determine Interactivity Intent:** Identify if the Target HTML Element is intended to be interactive:
-   - PRECEDENCE RULE: If the target is non-interactive, mark PASS immediately for this rule.
+   - PRECEDENCE RULE: Do NOT auto-pass based only on "non-interactive". First verify whether there is meaningful interactive intent exposed to users or assistive technology (native control semantics, interactive ARIA role, focus behavior, keyboard expectation, or clear control purpose in context).
    - Interactive elements include buttons, links, inputs, form controls, and custom widgets.
    - Hidden elements should be treated as NON-interactive for this rule unless there is strong evidence they are intentionally exposed to assistive tech.
    - For custom elements, consider them interactive ONLY when there is strong evidence such as:
@@ -56,10 +56,10 @@ strict_rule: Do not consider element highlighted border for evaluation, it is ju
 4. **Pass/Fail:** Assign a final status of "PASS" or "FAIL".
    - **PASS:** The element is properly keyboard accessible with appropriate focus management and keyboard event handlers, OR the element is not intended to be interactive.
    - **FAIL:** The element is clearly interactive but not keyboard accessible, or lacks proper keyboard event handling.
-   - If the target is non-interactive, default to PASS and explain why keyboard-interactive check is not applicable.
+   - If the target is non-interactive, PASS only when evidence supports non-interactive/presentational intent; FAIL when meaningful interactive intent exists but keyboard access is missing.
    - Do NOT fail based on onclick alone.
    - Do NOT fail solely because an element looks clickable if hidden-state evidence indicates it is not currently interactive.
-   - If interactivity is uncertain or based only on weak signals, prefer PASS with explanation rather than a false-positive FAIL.
+   - If interactivity is uncertain or based only on weak signals, do not use weak signals alone to fail. Corroborate with semantic exposure, focus behavior, and visible control intent before deciding PASS/FAIL.
 
 5. **Summary & Details:** Provide a concise summary and a detailed technical explanation referencing the code.
 6. **Suggestions:** Provide an actionable code snippet to fix any issues.

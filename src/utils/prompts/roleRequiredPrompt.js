@@ -28,10 +28,10 @@ ${elementData.attributes}
 # INSTRUCTIONS
 ---
 Your analysis must be methodical and precise.
-strict_rule: Do not consider element highlighted border for evaluation, it is just for representation of the base element
+Strict visual rule: Ignore any pink/magenta highlighted border or outline shown in screenshots/base images. That border is only for targeting the element and must NOT be treated as part of the UI, style, contrast, spacing, or accessibility behavior.
 
 1. **Determine Necessity:** Identify if the Target HTML Element requires a specific ARIA role or native semantic equivalent:
-   - PRECEDENCE RULE: If the target is non-interactive, mark PASS immediately for this rule unless it is clearly a meaningful standalone graphic exposed semantically to assistive tech.
+   - PRECEDENCE RULE: Do NOT auto-pass based only on "non-interactive". First determine whether the element is exposed with meaningful semantics or interactive intent (native control semantics, interactive behavior, landmark/graphic intent, or ARIA semantics that imply purpose).
    - Interactive elements (buttons, links, inputs, form controls) REQUIRE appropriate semantic roles (native or ARIA).
    - Hidden elements should be treated as NON-interactive for this rule unless there is strong evidence they are intentionally exposed to assistive tech.
    - For custom elements, require an interactive role ONLY when there is strong interactivity evidence such as:
@@ -55,10 +55,10 @@ strict_rule: Do not consider element highlighted border for evaluation, it is ju
 4. **Pass/Fail:** Assign a final status of "PASS" or "FAIL".
    - **PASS:** The element has the proper role (native or explicit) when required, or correctly lacks a role if it is purely structural/decorative.
    - **FAIL:** The element is missing a required role, has an incorrect role, or lacks required interactivity features for its assigned role.
-   - If the target is non-interactive, default to PASS and explain why role-required is not applicable for this element context.
+   - If the target is non-interactive, PASS only when evidence supports structural/decorative/presentational intent; FAIL when meaningful exposed purpose requires a role or native semantic equivalent.
    - Do NOT fail based on onclick alone.
    - Do NOT fail solely because an element looks clickable if hidden-state evidence indicates it is not currently interactive.
-   - If interactivity is uncertain or based only on weak signals, prefer PASS with explanation rather than a false-positive FAIL.
+   - If interactivity is uncertain or based only on weak signals, do not use weak signals alone to decide. Use semantic exposure and element purpose evidence to decide PASS/FAIL.
 
 5. **Summary & Details:** Provide a concise summary and a detailed technical explanation referencing the code.
 6. **Suggestions:** Provide an actionable code snippet to fix any issues.
