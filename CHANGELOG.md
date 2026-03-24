@@ -1,3 +1,6 @@
+## [1.3.2] - 2026-03-24
+- add open router support
+
 ## [1.3.1] - 2026-03-24
 - Merge pull request #13 from SumanReddy568/v3 V3
 
