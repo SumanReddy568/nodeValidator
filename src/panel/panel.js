@@ -3913,7 +3913,6 @@ async function initializeAIFeatures() {
     });
   }
 
-  // AI analysis UI is initialized by src/utils/aiUIHandler.js on DOMContentLoaded.  // Load AI settings from storage
   chrome.storage.local.get(
     [
       "geminiApiKey",

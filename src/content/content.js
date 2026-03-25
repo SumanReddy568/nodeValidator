@@ -496,7 +496,21 @@ console.log('Node Validator Content Script loaded');
                     }
 
                     // Is focusable
-                    const isFocusable = (element.tabIndex >= 0);
+                    const tagName = element.tagName.toLowerCase();
+                    const role = element.getAttribute('role');
+                    const interactiveRoles = ['button', 'link', 'checkbox', 'menuitem', 'tab', 'switch', 'radio', 'treeitem', 'option'];
+                    const isNativeFocusable = (
+                        ['button', 'input', 'select', 'textarea'].includes(tagName) ||
+                        (tagName === 'a' && (element.hasAttribute('href') || element.hasAttribute('onclick')))
+                    );
+                    const isAriaInteractive = role && interactiveRoles.includes(role.toLowerCase());
+                    const hasOnClick = !!(element.onclick || element.getAttribute('onclick'));
+                    const isFocusable = (
+                        element.tabIndex >= 0 ||
+                        isNativeFocusable ||
+                        isAriaInteractive ||
+                        hasOnClick
+                    );
                     a11yInfo.push(`Focusable: ${isFocusable}`);
 
                     // Label info
