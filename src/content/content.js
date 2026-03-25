@@ -357,19 +357,38 @@ console.log('Node Validator Content Script loaded');
         if (!elements || elements.length === 0) return;
 
         console.log(`Highlighting ${elements.length} elements`);
-        function getInlineEventListeners(element) {
+        function getEventListeners(element) {
             const events = [];
-            // List of common event attributes
+            // Common inline event attributes
             const eventAttrs = [
                 'onclick', 'ondblclick', 'onmousedown', 'onmouseup', 'onmouseover', 'onmouseout',
-                'onmouseenter', 'onmouseleave', 'onkeydown', 'onkeyup', 'onchange', 'oninput', 'onsubmit'
+                'onmouseenter', 'onmouseleave', 'onkeydown', 'onkeyup', 'onchange', 'oninput', 'onsubmit', 'onfocus', 'onblur'
             ];
             eventAttrs.forEach(attr => {
                 if (element[attr]) {
-                    events.push(`${attr}: ${element[attr].toString()}`);
+                    events.push(`Inline ${attr}: present`);
                 }
             });
-            return events;
+            
+            // Check for framework specific event wrappers
+            try {
+                const keys = Object.keys(element);
+                const reactProp = keys.find(key => key.startsWith('__reactProps$') || key.startsWith('__reactEventHandlers$'));
+                if (reactProp && element[reactProp]) {
+                    const props = element[reactProp];
+                    Object.keys(props).forEach(prop => {
+                        if (prop.startsWith('on') && typeof props[prop] === 'function') {
+                            events.push(`React ${prop}`);
+                        }
+                    });
+                }
+                if (element.__vue__) events.push('Vue Component (likely has listeners)');
+                if (element.__ngContext__) events.push('Angular Context (likely has listeners)');
+            } catch (e) {
+                console.warn('Error checking framework listeners:', e);
+            }
+            
+            return events.length > 0 ? events.join(', ') : '-';
         }
         elements.forEach(element => {
             try {
@@ -477,7 +496,21 @@ console.log('Node Validator Content Script loaded');
                     }
 
                     // Is focusable
-                    const isFocusable = (element.tabIndex >= 0);
+                    const tagName = element.tagName.toLowerCase();
+                    const role = element.getAttribute('role');
+                    const interactiveRoles = ['button', 'link', 'checkbox', 'menuitem', 'tab', 'switch', 'radio', 'treeitem', 'option'];
+                    const isNativeFocusable = (
+                        ['button', 'input', 'select', 'textarea'].includes(tagName) ||
+                        (tagName === 'a' && (element.hasAttribute('href') || element.hasAttribute('onclick')))
+                    );
+                    const isAriaInteractive = role && interactiveRoles.includes(role.toLowerCase());
+                    const hasOnClick = !!(element.onclick || element.getAttribute('onclick'));
+                    const isFocusable = (
+                        element.tabIndex >= 0 ||
+                        isNativeFocusable ||
+                        isAriaInteractive ||
+                        hasOnClick
+                    );
                     a11yInfo.push(`Focusable: ${isFocusable}`);
 
                     // Label info
@@ -503,10 +536,24 @@ console.log('Node Validator Content Script loaded');
                         'display', 'position', 'visibility', 'opacity',
                         'width', 'height',
                         'color', 'background-color',
-                        'font-size', 'font-weight'
+                        'font-size', 'font-weight', 'font-family',
+                        'cursor', 'pointer-events'
                     ];
 
                     const cssInfo = cssProps.map(prop => `${prop}: ${styles.getPropertyValue(prop)}`);
+                    
+                    // Add effective background color (traversed up if transparent)
+                    const effectiveBg = getEffectiveBackgroundColor(element);
+                    if (effectiveBg && effectiveBg !== styles.getPropertyValue('background-color')) {
+                        cssInfo.push(`effective-background-color: ${effectiveBg} (inherited)`);
+                    }
+
+                    // Add effective foreground color
+                    const effectiveFg = getEffectiveForegroundColor(element);
+                    if (effectiveFg && effectiveFg !== styles.getPropertyValue('color')) {
+                        cssInfo.push(`effective-foreground-color: ${effectiveFg}`);
+                    }
+                    
                     nodeCssProperties = cssInfo.join('\n');
                 } catch (e) {
                     console.warn('Error extracting CSS properties:', e);
@@ -518,6 +565,7 @@ console.log('Node Validator Content Script loaded');
                     childHtmlLength: childHtmlSnippet.length
                 });
 
+                window.$nvElement = element;
                 try {
                     const rect = element.getBoundingClientRect();
                     chrome.runtime.sendMessage({
@@ -529,6 +577,7 @@ console.log('Node Validator Content Script loaded');
                             attributes: nodeAttributes,
                             accessibility: nodeAccessibility,
                             cssProperties: nodeCssProperties,
+                            eventListeners: getEventListeners(element),
                             screenshotTarget: {
                                 x: rect.left,
                                 y: rect.top,
@@ -537,8 +586,7 @@ console.log('Node Validator Content Script loaded');
                                 viewportWidth: window.innerWidth,
                                 viewportHeight: window.innerHeight,
                                 devicePixelRatio: window.devicePixelRatio || 1
-                            },
-                            // inlineEvents
+                            }
                         }
                     });
                 } catch (e) {
@@ -602,8 +650,7 @@ console.log('Node Validator Content Script loaded');
 
                 highlightTimeouts.push(timeout);
 
-                // const inlineEvents = getInlineEventListeners(element);
-                // console.log('Inline event listeners:', inlineEvents);
+                // Event listeners are now included in the payload sent to the panel
 
             } catch (e) {
                 console.error('Error highlighting element:', e);
@@ -708,6 +755,42 @@ console.log('Node Validator Content Script loaded');
                 console.error('Fallback scroll also failed:', e2);
             }
         }
+    }
+
+    /**
+     * Finds the first non-transparent background color by traversing up the DOM.
+     */
+    function getEffectiveBackgroundColor(element) {
+        let current = element;
+        while (current) {
+            const bg = window.getComputedStyle(current).backgroundColor;
+            // Check if color is not transparent (rgba(0,0,0,0) or 'transparent')
+            if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+                return bg;
+            }
+            current = current.parentElement;
+        }
+        return 'rgb(255, 255, 255)'; // Default to white if no background found
+    }
+
+    /**
+     * Finds the foreground color, prioritizing children if the current element is just a wrapper.
+     */
+    function getEffectiveForegroundColor(element) {
+        const styles = window.getComputedStyle(element);
+        const color = styles.color;
+        
+        // If the element itself has no text but has children, check the first child with text
+        if (!element.textContent.trim() && element.children.length > 0) {
+            for (const child of element.children) {
+                const childText = child.textContent.trim();
+                if (childText) {
+                    return window.getComputedStyle(child).color;
+                }
+            }
+        }
+        
+        return color;
     }
 
     function createStatusPanel() {

@@ -23,6 +23,9 @@ ${elementData.cssProperties}
 **5. Other Attributes:**
 ${elementData.attributes}
 
+**6. Event Listeners (Inline and framework specific):**
+${elementData.eventListeners}
+
 (Note: Visual inputs may also be attached when available as base64-encoded image inputs: a cropped screenshot of the target element and a full-page context screenshot.)
 
 # INSTRUCTIONS
@@ -30,39 +33,26 @@ ${elementData.attributes}
 Your analysis must be methodical and precise.
 Strict visual rule: Ignore any pink/magenta highlighted border or outline shown in screenshots/base images. That border is only for targeting the element and must NOT be treated as part of the UI, style, contrast, spacing, or accessibility behavior.
 
-1. **Determine Interactivity Intent:** Identify if the Target HTML Element is intended to be interactive:
-   - PRECEDENCE RULE: Do NOT auto-pass based only on "non-interactive". First verify whether there is meaningful interactive intent exposed to users or assistive technology (native control semantics, interactive ARIA role, focus behavior, keyboard expectation, or clear control purpose in context).
-   - Interactive elements include buttons, links, inputs, form controls, and custom widgets.
-   - Hidden elements should be treated as NON-interactive for this rule unless there is strong evidence they are intentionally exposed to assistive tech.
-   - For custom elements, consider them interactive ONLY when there is strong evidence such as:
-     native activation behavior, interactive ARIA role, keyboard focusability with intended interaction, or explicit click/keyboard event handling.
-   - A single onclick handler alone is NOT sufficient to classify an element as interactive for this rule.
-   - If onclick is present, confirm interactivity using screenshots plus at least one additional strong signal (for example: interactive role, keyboard support, focusability in context, or visible control-like UI intent).
-   - Do NOT treat visual styling or metadata alone as interactivity evidence (for example: cursor: pointer, CSS classes, data-* attributes such as data-href).
+Keyboard accessibility is a core accessibility requirement that ensures a user can fully operate a website or application using only a keyboard, without needing a mouse or touch input. This is especially important for users with motor disabilities, power users, and screen reader users who rely heavily on keyboard navigation.
 
-2. **Check Focusability & Handlers:**
-   - Native interactive elements (button, input, select, textarea, a) should be naturally focusable.
-   - Custom interactive elements should have a valid tabindex (≥ 0).
-   - Verify the element has appropriate keyboard event handlers (onkeydown, onkeyup, onkeypress) when needed for custom components.
-   - If the element has click handlers, ensure they're also accessible via keyboard (Enter, Space for buttons; Arrow keys for complex widgets).
+1. **Check if Interactive Element:**
+   - First, determine if the target element is intended to be interactive (e.g., buttons, links, inputs, dropdowns, modals).
+   - If the element is hidden (display: none, visibility: hidden, aria-hidden="true", or not visible in screenshots), it is not currently exposed to users — consider marking it as "PASS".
+   - For custom elements (divs, spans), consider them interactive if they have an interactive ARIA role (e.g., role="button"), are keyboard focusable with interaction intent, or visually appear as a control in screenshots.
+   - If the element is NOT an interactive element, consider marking it as "PASS".
 
-3. **Check Hidden/Invisible Elements:**
-   - Use visual evidence from screenshots as the PRIMARY signal for visibility and interactivity in this rule.
-   - When onclick exists but the screenshot shows plain/non-control presentation, no visible affordance, or hidden/occluded state, treat as non-interactive unless stronger semantic evidence overrides.
-   - If the element appears hidden/off-canvas/fully occluded/not rendered in screenshots, treat it as non-interactive, even when CSS shows visibility: visible.
-   - Use computed CSS visibility data as supporting/fallback evidence only when screenshots are missing or ambiguous.
-   - If computed styles indicate hidden state (for example: display: none, visibility: hidden, opacity: 0), treat the element as non-interactive.
+2. **Evaluate Interactive Elements (Follow-up Check):** If the element IS an interactive element, add the following follow-up checks:
+   - **Reachable via keyboard:** All interactive elements must be reachable via keyboard, typically navigated using the Tab key. Custom components (e.g., a custom button or div) must be focusable (e.g., tabindex="0"). Note: Native HTML interactive elements (button, a, input, select, textarea) inherently satisfy keyboard reachability and activation.
+   - **Keyboard Activation:** Users can activate actions using a keyboard. Enter or Space should trigger buttons, links, toggles. Custom components must respond to expected keyboard events.
+   - **Visible and Logical Focus:** There must be a clear visual indicator of focus (outline, highlight). Tab order should follow the natural reading order (top → bottom, left → right).
+   - **No Keyboard Traps:** Users should never get stuck in a component (like a modal or dropdown). They must be able to navigate in and out.
 
-4. **Pass/Fail:** Assign a final status of "PASS" or "FAIL".
-   - **PASS:** The element is properly keyboard accessible with appropriate focus management and keyboard event handlers, OR the element is not intended to be interactive.
-   - **FAIL:** The element is clearly interactive but not keyboard accessible, or lacks proper keyboard event handling.
-   - If the target is non-interactive, PASS only when evidence supports non-interactive/presentational intent; FAIL when meaningful interactive intent exists but keyboard access is missing.
-   - Do NOT fail based on onclick alone.
-   - Do NOT fail solely because an element looks clickable if hidden-state evidence indicates it is not currently interactive.
-   - If interactivity is uncertain or based only on weak signals, do not use weak signals alone to fail. Corroborate with semantic exposure, focus behavior, and visible control intent before deciding PASS/FAIL.
+3. **Pass/Fail Formulation:** Assign a final status of "PASS" or "FAIL".
+   - **PASS:** The element is non-interactive, OR it is interactive and fully meets all the keyboard accessibility follow-up checks.
+   - **FAIL:** The element is interactive but fails any keyboard accessibility check (e.g., unreachable via keyboard, cannot activate using Enter/Space, lacks visible focus, or creates a keyboard trap).
 
-5. **Summary & Details:** Provide a concise summary and a detailed technical explanation referencing the code.
-6. **Suggestions:** Provide an actionable code snippet to fix any issues.
+4. **Summary & Details:** Provide a concise summary and a detailed technical explanation referencing the code.
+5. **Suggestions:** Provide an actionable code snippet to fix any issues.
 
 # RESPONSE FORMAT
 ---
