@@ -25,6 +25,7 @@ let currentElementData = {
   accessibility: "",
   cssProperties: "",
   attributes: "",
+  eventListeners: "",
   screenshotTarget: null,
   screenshotDataUrl: null,
   contextScreenshotDataUrl: null,
@@ -606,6 +607,7 @@ function initializePanel() {
       accessibility: payload.accessibility || "",
       cssProperties: payload.cssProperties || "",
       attributes: payload.attributes || "",
+      eventListeners: payload.eventListeners || "-",                                       
       screenshotTarget: payload.screenshotTarget || null,
       screenshotDataUrl: null,
       contextScreenshotDataUrl: null,
@@ -1380,6 +1382,7 @@ function initializePanel() {
             document.getElementById("nodeAccessibility");
           const nodeCssProperties =
             document.getElementById("nodeCssProperties");
+          const eventListeners = document.getElementById("eventListeners");
 
           // Debug the payload to ensure all data is received
           console.log("Element details payload:", message.payload);
@@ -1489,22 +1492,74 @@ function initializePanel() {
             }
           }
 
+          // Event Listeners
+          if (eventListeners) {
+            try {
+              if (
+                message.payload.eventListeners &&
+                message.payload.eventListeners !== "-"
+              ) {
+                eventListeners.textContent = message.payload.eventListeners;
+              } else {
+                eventListeners.textContent = "-";
+              }
+            } catch (e) {
+              console.error("Error setting event listeners:", e);
+              eventListeners.textContent = "-";
+            }
+          }
+
           // Make sure copy buttons are set up
           setTimeout(setupCopyButtons, 0);
 
-          // Update current element data for AI analysis
-          updateCurrentElementData(message.payload);
-          setAIAnalysisFeedback(
-            evaluateUsingAiCheckbox?.checked ? "loading" : "waiting",
-            evaluateUsingAiCheckbox?.checked
-              ? "Element details received. Starting AI analysis..."
-              : "Element details received. Enable AI evaluation to analyze.",
-            "element details received",
-          );
+          const startAnalysis = () => {
+            // Update current element data for AI analysis
+            updateCurrentElementData(message.payload);
+            setAIAnalysisFeedback(
+              evaluateUsingAiCheckbox?.checked ? "loading" : "waiting",
+              evaluateUsingAiCheckbox?.checked
+                ? "Element details received. Starting AI analysis..."
+                : "Element details received. Enable AI evaluation to analyze.",
+              "element details received",
+            );
+            return triggerCurrentElementAIAnalysis("element details received");
+          };
 
-          // Check if we need to auto-evaluate with AI
-          // Store the promise so automated mode can wait for it
-          aiAnalysisPromise = triggerCurrentElementAIAnalysis("element details received");
+          if (chrome.devtools && chrome.devtools.inspectedWindow) {
+            aiAnalysisPromise = new Promise(resolve => {
+              chrome.devtools.inspectedWindow.eval(
+                `(function() {
+                  if (!window.$nvElement) return null;
+                  try {
+                    var listeners = getEventListeners(window.$nvElement);
+                    if (!listeners || Object.keys(listeners).length === 0) return null;
+                    var result = [];
+                    for (var ev in listeners) {
+                      result.push(ev + ' (' + listeners[ev].length + ')');
+                    }
+                    return 'DevTools Events: ' + result.join(', ');
+                  } catch(err) { return null; }
+                })()`,
+                function(result, isException) {
+                  if (!isException && result) {
+                    if (message.payload.eventListeners && message.payload.eventListeners !== "-") {
+                      message.payload.eventListeners += "\\n" + result;
+                    } else {
+                      message.payload.eventListeners = result;
+                    }
+                    if (eventListeners) {
+                      eventListeners.textContent = message.payload.eventListeners;
+                    }
+                  }
+                  resolve(startAnalysis());
+                }
+              );
+            });
+          } else {
+            // Check if we need to auto-evaluate with AI
+            // Store the promise so automated mode can wait for it
+            aiAnalysisPromise = startAnalysis();
+          }
         }
         // Handle various message types
         if (message.action === "UPDATE_STATUS_RESULT") {
@@ -3952,6 +4007,7 @@ async function initializeAIFeatures() {
       accessibility: "{accessibility}",
       cssProperties: "{cssProperties}",
       attributes: "{attributes}",
+      eventListeners: "{eventListeners}",
     };
 
     if (rule === "role-required" && window.generateRoleRequiredPrompt) {

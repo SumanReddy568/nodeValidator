@@ -357,19 +357,38 @@ console.log('Node Validator Content Script loaded');
         if (!elements || elements.length === 0) return;
 
         console.log(`Highlighting ${elements.length} elements`);
-        function getInlineEventListeners(element) {
+        function getEventListeners(element) {
             const events = [];
-            // List of common event attributes
+            // Common inline event attributes
             const eventAttrs = [
                 'onclick', 'ondblclick', 'onmousedown', 'onmouseup', 'onmouseover', 'onmouseout',
-                'onmouseenter', 'onmouseleave', 'onkeydown', 'onkeyup', 'onchange', 'oninput', 'onsubmit'
+                'onmouseenter', 'onmouseleave', 'onkeydown', 'onkeyup', 'onchange', 'oninput', 'onsubmit', 'onfocus', 'onblur'
             ];
             eventAttrs.forEach(attr => {
                 if (element[attr]) {
-                    events.push(`${attr}: ${element[attr].toString()}`);
+                    events.push(`Inline ${attr}: present`);
                 }
             });
-            return events;
+            
+            // Check for framework specific event wrappers
+            try {
+                const keys = Object.keys(element);
+                const reactProp = keys.find(key => key.startsWith('__reactProps$') || key.startsWith('__reactEventHandlers$'));
+                if (reactProp && element[reactProp]) {
+                    const props = element[reactProp];
+                    Object.keys(props).forEach(prop => {
+                        if (prop.startsWith('on') && typeof props[prop] === 'function') {
+                            events.push(`React ${prop}`);
+                        }
+                    });
+                }
+                if (element.__vue__) events.push('Vue Component (likely has listeners)');
+                if (element.__ngContext__) events.push('Angular Context (likely has listeners)');
+            } catch (e) {
+                console.warn('Error checking framework listeners:', e);
+            }
+            
+            return events.length > 0 ? events.join(', ') : '-';
         }
         elements.forEach(element => {
             try {
@@ -503,7 +522,8 @@ console.log('Node Validator Content Script loaded');
                         'display', 'position', 'visibility', 'opacity',
                         'width', 'height',
                         'color', 'background-color',
-                        'font-size', 'font-weight', 'font-family'
+                        'font-size', 'font-weight', 'font-family',
+                        'cursor', 'pointer-events'
                     ];
 
                     const cssInfo = cssProps.map(prop => `${prop}: ${styles.getPropertyValue(prop)}`);
@@ -531,6 +551,7 @@ console.log('Node Validator Content Script loaded');
                     childHtmlLength: childHtmlSnippet.length
                 });
 
+                window.$nvElement = element;
                 try {
                     const rect = element.getBoundingClientRect();
                     chrome.runtime.sendMessage({
@@ -542,6 +563,7 @@ console.log('Node Validator Content Script loaded');
                             attributes: nodeAttributes,
                             accessibility: nodeAccessibility,
                             cssProperties: nodeCssProperties,
+                            eventListeners: getEventListeners(element),
                             screenshotTarget: {
                                 x: rect.left,
                                 y: rect.top,
@@ -550,8 +572,7 @@ console.log('Node Validator Content Script loaded');
                                 viewportWidth: window.innerWidth,
                                 viewportHeight: window.innerHeight,
                                 devicePixelRatio: window.devicePixelRatio || 1
-                            },
-                            // inlineEvents
+                            }
                         }
                     });
                 } catch (e) {
@@ -615,8 +636,7 @@ console.log('Node Validator Content Script loaded');
 
                 highlightTimeouts.push(timeout);
 
-                // const inlineEvents = getInlineEventListeners(element);
-                // console.log('Inline event listeners:', inlineEvents);
+                // Event listeners are now included in the payload sent to the panel
 
             } catch (e) {
                 console.error('Error highlighting element:', e);

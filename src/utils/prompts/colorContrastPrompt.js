@@ -25,6 +25,9 @@ ${elementData.cssProperties}
 **3. Element Attributes:**
 ${elementData.attributes}
 
+**4. Event Listeners:**
+${elementData.eventListeners}
+
 # INSTRUCTIONS
 -----------------
 1.  **Applicability Check:** 

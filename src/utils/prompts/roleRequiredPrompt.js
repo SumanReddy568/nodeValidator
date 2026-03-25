@@ -23,6 +23,9 @@ ${elementData.cssProperties}
 **5. Other Attributes:**
 ${elementData.attributes}
 
+**6. Event Listeners (Inline and framework specific):**
+${elementData.eventListeners}
+
 (Note: Visual inputs may also be attached when available as base64-encoded image inputs: a cropped screenshot of the target element and a full-page context screenshot.)
 
 # INSTRUCTIONS
